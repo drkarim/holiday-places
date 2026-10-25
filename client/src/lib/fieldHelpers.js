@@ -56,3 +56,17 @@ export function formatKm(km) {
   if (km == null) return null;
   return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`;
 }
+
+// Spreadsheet "Type" values are often long research notes, not clean
+// categories (e.g. "Café / breakfast & brunch restaurant (family-run;
+// waffles, omelettes, ...)"). For chips/cards we want a short label, not a
+// rewritten dataset — so derive one: take the text up to the first clause
+// delimiter, then cap at a few words. The full original text still shows on
+// the detail screen, nothing is lost.
+export function shortLabel(text, maxWords = 3) {
+  if (!text) return text;
+  const clause = String(text).split(/\s*[(/,;+]\s*/)[0].trim();
+  const words = clause.split(/\s+/).filter(Boolean);
+  const short = words.length > maxWords ? words.slice(0, maxWords).join(' ') : clause;
+  return short || String(text).trim();
+}

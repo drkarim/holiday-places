@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useData } from '../offline/DataContext.jsx';
-import { fieldByRole, valueByRole } from '../lib/fieldHelpers.js';
+import { fieldByRole, valueByRole, shortLabel } from '../lib/fieldHelpers.js';
 import { PhotoCarousel } from '../components/PhotoCarousel.jsx';
 import { MapsButton } from '../components/MapsButton.jsx';
 import { api } from '../api.js';
@@ -27,7 +27,7 @@ export function PlaceDetail() {
   }
 
   const name = valueByRole(schema, place, 'name');
-  const type = valueByRole(schema, place, 'type');
+  const type = shortLabel(valueByRole(schema, place, 'type'));
   const area = valueByRole(schema, place, 'area');
 
   const shown = new Set(['rowNumber', 'name', 'mapsLink', 'lat', 'lng']);

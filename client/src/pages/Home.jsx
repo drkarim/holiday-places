@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../offline/DataContext.jsx';
 import { useGeolocation } from '../hooks/useGeolocation.js';
-import { fieldByRole, valueByRole, haversineKm, formatKm } from '../lib/fieldHelpers.js';
+import { fieldByRole, valueByRole, haversineKm, formatKm, shortLabel } from '../lib/fieldHelpers.js';
 import { SearchBar } from '../components/SearchBar.jsx';
 import { Chips } from '../components/Chips.jsx';
 import { FilterBar } from '../components/FilterBar.jsx';
@@ -22,7 +22,8 @@ export function Home() {
 
   const types = useMemo(() => {
     if (!typeField) return [];
-    return [...new Set(places.map((p) => p.fields?.[typeField.key]).filter(Boolean))].sort();
+    const labels = places.map((p) => p.fields?.[typeField.key]).filter(Boolean).map((t) => shortLabel(t));
+    return [...new Set(labels)].sort();
   }, [places, typeField]);
 
   const areas = useMemo(() => {
@@ -42,7 +43,7 @@ export function Home() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = withDistance.filter(({ place }) => {
-      if (typeFilter && valueByRole(schema, place, 'type') !== typeFilter) return false;
+      if (typeFilter && shortLabel(valueByRole(schema, place, 'type')) !== typeFilter) return false;
       if (filters.area && valueByRole(schema, place, 'area') !== filters.area) return false;
       if (filters.visited === 'yes' && !place.visited) return false;
       if (filters.visited === 'no' && place.visited) return false;

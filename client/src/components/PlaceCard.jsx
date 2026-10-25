@@ -1,13 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { valueByRole } from '../lib/fieldHelpers.js';
+import { valueByRole, shortLabel } from '../lib/fieldHelpers.js';
 import { MapsButton } from './MapsButton.jsx';
 import './PlaceCard.css';
 
 export function PlaceCard({ place, schema, distanceLabel }) {
   const navigate = useNavigate();
   const name = valueByRole(schema, place, 'name') || 'Untitled place';
-  const type = valueByRole(schema, place, 'type');
+  const type = shortLabel(valueByRole(schema, place, 'type'));
   const area = valueByRole(schema, place, 'area');
   const sheetDistance = valueByRole(schema, place, 'distance');
   const photo = place.photos?.[0];

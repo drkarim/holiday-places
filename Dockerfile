@@ -1,5 +1,5 @@
 # --- Stage 1: build the PWA frontend ---
-FROM node:20-alpine AS client-build
+FROM node:22-alpine AS client-build
 WORKDIR /app/client
 
 # VITE_API_TOKEN is inlined into the static bundle at build time, so it must
@@ -14,12 +14,12 @@ COPY client/ ./
 RUN npm run build
 
 # --- Stage 2: the API + static server ---
-# firebase-admin's Google Cloud client libraries (@google-cloud/firestore,
-# @google-cloud/storage — optionalDependencies) are built/published against
-# glibc; npm silently skips them on Alpine's musl libc, which built fine but
-# crashed at startup with "Cannot find module '@google-cloud/firestore'".
-# Debian slim avoids that whole class of issue.
-FROM node:20-bookworm-slim AS server
+# firebase-admin@14 (and its google-auth-library/gaxios/gcp-metadata deps)
+# requires Node >=22. On Node 20, npm installs it anyway but silently drops
+# its optionalDependencies (@google-cloud/firestore, @google-cloud/storage)
+# since their own engine check fails — builds fine, crashes at startup with
+# "Cannot find module '@google-cloud/firestore'". Node 22 avoids that.
+FROM node:22-bookworm-slim AS server
 WORKDIR /app
 
 COPY server/package*.json server/

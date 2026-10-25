@@ -3,9 +3,66 @@ import { fieldByRole } from './schema.js';
 import { resolveMapsLink } from './mapsLink.js';
 import { extractPhone, extractWebsite, telHref } from './contact.js';
 import { buildDedupeKey } from './dedupeKey.js';
+import { shortLabel } from './shortLabel.js';
+import { searchStockPhoto } from './pexels.js';
 
 const PLACES = 'places';
 const META = 'meta';
+const CATEGORY_PHOTOS_DOC = 'categoryPhotos';
+
+function slugifyCategory(label) {
+  return String(label || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Category-level stock photos are cached indefinitely in one small Firestore
+// doc (not per-place) — a handful of categories, fetched once each, reused by
+// every place sharing that category and every request after the first.
+async function resolveCategoryPhoto(category) {
+  const key = slugifyCategory(category);
+  if (!key) return null;
+
+  const ref = getDb().collection(META).doc(CATEGORY_PHOTOS_DOC);
+  const snap = await ref.get();
+  const cache = (snap.exists && snap.data()) || {};
+  if (cache[key]) return cache[key];
+
+  const photo = await searchStockPhoto(category);
+  if (!photo) return null;
+
+  await ref.set({ [key]: photo }, { merge: true });
+  return photo;
+}
+
+// Attaches a `categoryPhoto` to any place that has no real photos of its
+// own, resolving each distinct category at most once per call.
+async function attachCategoryPhotos(places, schema) {
+  const typeField = fieldByRole(schema, 'type');
+  if (!typeField) return places;
+
+  const needed = new Map(); // category -> promise
+  for (const place of places) {
+    if (place.photos.length) continue;
+    const category = shortLabel(place.fields[typeField.key]);
+    if (!category || needed.has(category)) continue;
+    needed.set(category, resolveCategoryPhoto(category));
+  }
+
+  const resolved = new Map();
+  for (const [category, promise] of needed) {
+    resolved.set(category, await promise);
+  }
+
+  for (const place of places) {
+    if (place.photos.length) continue;
+    const category = shortLabel(place.fields[typeField.key]);
+    place.categoryPhoto = resolved.get(category) || null;
+  }
+  return places;
+}
 
 export async function getSchema() {
   const snap = await getDb().collection(META).doc('schema').get();
@@ -67,6 +124,7 @@ export function decoratePlace(doc, schema) {
     visited: !!doc.visited,
     userNotes: doc.userNotes || '',
     photos: doc.photos || [],
+    categoryPhoto: null,
     coords: doc.coords || null,
     mapsUrl,
     contact: { phone, telHref: telHref(phone), website },
@@ -77,19 +135,22 @@ export function decoratePlace(doc, schema) {
 
 export async function listPlaces() {
   const [schema, snap] = await Promise.all([getSchema(), getDb().collection(PLACES).get()]);
-  return snap.docs
+  const places = snap.docs
     .map((d) => decoratePlace({ id: d.id, ...d.data() }, schema))
     .sort((a, b) => {
       const an = (fieldByRole(schema, 'name') && a.fields[fieldByRole(schema, 'name').key]) || '';
       const bn = (fieldByRole(schema, 'name') && b.fields[fieldByRole(schema, 'name').key]) || '';
       return String(an).localeCompare(String(bn));
     });
+  return attachCategoryPhotos(places, schema);
 }
 
 export async function getPlace(id) {
   const [schema, snap] = await Promise.all([getSchema(), getDb().collection(PLACES).doc(id).get()]);
   if (!snap.exists) return null;
-  return decoratePlace({ id: snap.id, ...snap.data() }, schema);
+  const place = decoratePlace({ id: snap.id, ...snap.data() }, schema);
+  const [decorated] = await attachCategoryPhotos([place], schema);
+  return decorated;
 }
 
 export async function findByDedupeKey(dedupeKey) {

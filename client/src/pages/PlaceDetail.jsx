@@ -96,7 +96,15 @@ export function PlaceDetail() {
         </button>
       </div>
 
-      <PhotoCarousel photos={place.photos} />
+      <PhotoCarousel
+        photos={
+          place.photos.length
+            ? place.photos
+            : place.categoryPhoto
+            ? [{ ...place.categoryPhoto, isStock: true }]
+            : []
+        }
+      />
 
       <div className="detail-content">
         <MapsButton url={place.mapsUrl} size="large" />

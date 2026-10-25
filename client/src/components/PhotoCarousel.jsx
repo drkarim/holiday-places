@@ -17,6 +17,7 @@ export function PhotoCarousel({ photos = [] }) {
   return (
     <div className="carousel">
       <img src={photo.url} alt={photo.caption || ''} />
+      {photo.isStock && <div className="carousel-stock-badge">Stock photo — not this specific place</div>}
       {photos.length > 1 && (
         <>
           <button

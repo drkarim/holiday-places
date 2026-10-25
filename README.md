@@ -129,7 +129,8 @@ run a single Node service.
    - `FIREBASE_CLIENT_EMAIL`
    - `FIREBASE_PRIVATE_KEY` — paste it with real newlines or `\n` escapes, Railway
      accepts either
-   - `FIREBASE_STORAGE_BUCKET`
+   - `FIREBASE_STORAGE_BUCKET` (only if you've enabled Storage — see §2)
+   - `PEXELS_API_KEY` (optional — category stock photos, see "Photos" below)
    - `VITE_API_TOKEN` — **same value as `API_TOKEN`**. This one is baked into
      the frontend at build time (Railway forwards service variables as Docker
      build args automatically), so the app's own "Add place" / "Mark visited"
@@ -248,7 +249,23 @@ curl -X POST https://<your-app>.up.railway.app/api/places/<id>/photos/fetch \
 Validation and auth failures return a JSON body like
 `{"error": "Missing required field(s): type, area."}` with a 4xx status.
 
-## 5. Offline behaviour
+## 5. Photos
+
+A place's own photos (pasted URL, uploaded, or fetched from Wikimedia) always
+take priority. If a place has none, the API fills in a `categoryPhoto` —
+one free stock photo per *category* (its short Type label — "Beach", "Café",
+etc.) from [Pexels](https://www.pexels.com/api/), not a real photo of that
+specific place. Set `PEXELS_API_KEY` to enable it; without it, places with no
+photos just show the placeholder icon as before.
+
+Each category's photo is fetched once and cached in Firestore (`meta/categoryPhotos`)
+— the first request after a new category shows up fetches it, every request
+after that (and every place sharing that category) is instant from cache. To
+force a re-fetch (e.g. you don't like the one it picked), delete that
+category's key from the `meta/categoryPhotos` document in the Firestore
+console.
+
+## 6. Offline behaviour
 
 - The full place list (all text fields) is mirrored into IndexedDB, so
   search/filter/detail all work with no signal.
@@ -264,7 +281,7 @@ Validation and auth failures return a JSON body like
   this was built against the standard Workbox/vite-plugin-pwa pattern but
   wasn't verifiable in the sandboxed tool used to build this.
 
-## 6. Known trade-offs
+## 7. Known trade-offs
 
 - `xlsx` (SheetJS) has a couple of open high-severity advisories with no fix
   on npm; it's only used to parse a file you control locally (the importer),

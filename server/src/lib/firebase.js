@@ -10,6 +10,19 @@ let app;
 let memoryDb;
 let memoryBucket;
 
+// Pasting a PEM private key into a web form (Railway, etc.) reliably mangles
+// it — some mix of literal "\n" text and real newlines, depending on how the
+// browser's textarea handled the paste. Rather than require an exact format,
+// normalize by stripping all whitespace from the base64 body and rebuilding
+// clean single-line-body PEM, which every PEM parser accepts.
+function normalizePrivateKey(raw) {
+  const key = (raw || '').trim().replace(/\\n/g, '\n');
+  const match = key.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/);
+  if (!match) return key;
+  const body = match[1].replace(/\s+/g, '');
+  return `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
+}
+
 // Read lazily (not at module-evaluation time) so a dotenv.config() call that
 // runs after this module is first imported still takes effect.
 function useMemoryDb() {
@@ -31,7 +44,7 @@ function initApp() {
     app = initializeApp({ projectId, storageBucket });
   } else {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
     if (!projectId || !clientEmail || !privateKey) {
       throw new Error(

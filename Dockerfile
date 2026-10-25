@@ -14,7 +14,12 @@ COPY client/ ./
 RUN npm run build
 
 # --- Stage 2: the API + static server ---
-FROM node:20-alpine AS server
+# firebase-admin's Google Cloud client libraries (@google-cloud/firestore,
+# @google-cloud/storage — optionalDependencies) are built/published against
+# glibc; npm silently skips them on Alpine's musl libc, which built fine but
+# crashed at startup with "Cannot find module '@google-cloud/firestore'".
+# Debian slim avoids that whole class of issue.
+FROM node:20-bookworm-slim AS server
 WORKDIR /app
 
 COPY server/package*.json server/

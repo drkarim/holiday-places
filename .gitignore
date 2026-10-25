@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+client/dist/
+data/*.xlsx
+data/*.xls
+!data/.gitkeep
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.DS_Store
+*.log
+.firebase/

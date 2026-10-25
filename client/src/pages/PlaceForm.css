@@ -1,0 +1,18 @@
+.place-form {
+  padding: 0 16px 32px;
+}
+
+.place-form h1 {
+  font-size: 24px;
+  margin: 8px 0 18px;
+}
+
+.form-errors {
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}

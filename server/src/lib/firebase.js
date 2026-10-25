@@ -1,4 +1,9 @@
-import admin from 'firebase-admin';
+// firebase-admin v12+ uses a modular API (like the client SDK) — the old
+// admin.credential.cert()/admin.firestore()/admin.storage() namespaced style
+// no longer works under ESM, so we import each piece from its subpath.
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { createMemoryFirestore, createMemoryBucket, memoryFieldValue } from './memoryFirestore.js';
 
 let app;
@@ -23,7 +28,7 @@ function initApp() {
   if (usingEmulator) {
     // firebase-admin / @google-cloud/firestore pick up FIRESTORE_EMULATOR_HOST
     // and the storage client picks up FIREBASE_STORAGE_EMULATOR_HOST automatically.
-    app = admin.initializeApp({ projectId, storageBucket });
+    app = initializeApp({ projectId, storageBucket });
   } else {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
@@ -36,8 +41,8 @@ function initApp() {
       );
     }
 
-    app = admin.initializeApp({
-      credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+    app = initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
       storageBucket,
     });
   }
@@ -51,7 +56,7 @@ export function getDb() {
     return memoryDb;
   }
   initApp();
-  return admin.firestore();
+  return getFirestore(app);
 }
 
 export function getBucket() {
@@ -60,7 +65,7 @@ export function getBucket() {
     return memoryBucket;
   }
   initApp();
-  return admin.storage().bucket();
+  return getStorage(app).bucket();
 }
 
 export function getAdmin() {
@@ -68,5 +73,5 @@ export function getAdmin() {
     return { firestore: { FieldValue: memoryFieldValue } };
   }
   initApp();
-  return admin;
+  return { firestore: { FieldValue } };
 }

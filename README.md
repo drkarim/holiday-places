@@ -85,17 +85,26 @@ npm run import -- path/to/other.xlsx  # or a specific file
    create a new project (or use an existing one).
 2. **Firestore**: Build → Firestore Database → Create database → Start in
    **production mode** → pick a region.
-3. **Storage**: Build → Storage → Get started → Start in **production mode**.
+3. **Storage** (optional — only needed for the "upload my own photo" button;
+   pasting an image URL and "find photos online" work without it): Build →
+   Storage. New projects are on the free **Spark** plan, which no longer lets
+   you enable Storage at all — you'll see an "Upgrade project" prompt instead
+   of "Get started". Storage needs the pay-as-you-go **Blaze** plan (it has a
+   generous free tier — 5GB storage, 1GB/day download — so a personal app like
+   this is very unlikely to actually cost anything, but it does require adding
+   a payment method). Skip this step entirely if you don't need photo uploads.
 4. **Service account**: Project settings (gear icon) → Service accounts →
    Generate new private key. This downloads a JSON file — keep it secret,
    never commit it.
 5. From that JSON, fill in your `.env`:
    - `FIREBASE_PROJECT_ID` → `project_id`
    - `FIREBASE_CLIENT_EMAIL` → `client_email`
-   - `FIREBASE_PRIVATE_KEY` → `private_key` (keep the quotes and `\n`s exactly
-     as they appear in the JSON)
-   - `FIREBASE_STORAGE_BUCKET` → usually `<project-id>.appspot.com` (check the
-     exact name under Storage → Files in the console)
+   - `FIREBASE_PRIVATE_KEY` → `private_key` (keep the `\n`s exactly as they
+     appear in the JSON; quotes around the value are optional)
+   - `FIREBASE_STORAGE_BUCKET` → only needed if you did step 3. Newer projects
+     default to `<project-id>.firebasestorage.app`, not the older
+     `.appspot.com` — check the exact name under Storage → Files in the
+     console once it's enabled.
 6. Remove/unset `USE_MEMORY_DB` so the app uses real Firebase.
 7. (Optional but recommended) Deploy the included security rules, which deny
    all direct client access — the app only ever talks to Firestore/Storage

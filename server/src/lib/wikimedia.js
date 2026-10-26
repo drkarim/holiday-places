@@ -1,28 +1,32 @@
 // Free, no-auth photo search against Wikimedia Commons.
 const API = 'https://commons.wikimedia.org/w/api.php';
+// Wikimedia rate-limits anonymous clients hard unless they identify
+// themselves: https://meta.wikimedia.org/wiki/User-Agent_policy
+const HEADERS = { 'User-Agent': 'holiday-places/1.0 (https://github.com/drkarim/holiday-places)' };
 
-export async function searchCommonsPhotos(query, limit = 4) {
-  if (!query) return [];
+async function commonsSearch(search, limit, width) {
   const params = new URLSearchParams({
     action: 'query',
     generator: 'search',
-    gsrsearch: query,
+    gsrsearch: search,
     gsrnamespace: '6', // File namespace
     gsrlimit: String(limit),
     prop: 'imageinfo',
-    iiprop: 'url|extmetadata|mime',
-    iiurlwidth: '1024',
+    iiprop: 'url|extmetadata|mime|size',
+    iiurlwidth: String(width),
     format: 'json',
     origin: '*',
   });
 
-  const res = await fetch(`${API}?${params.toString()}`);
+  const res = await fetch(`${API}?${params.toString()}`, { headers: HEADERS });
   if (!res.ok) return [];
   const data = await res.json();
   const pages = data?.query?.pages;
   if (!pages) return [];
 
+  // Generator results come back keyed by page id, not in rank order.
   return Object.values(pages)
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map((page) => {
       const info = page.imageinfo?.[0];
       if (!info) return null;
@@ -34,7 +38,52 @@ export async function searchCommonsPhotos(query, limit = 4) {
         source: 'wikimedia',
         caption: page.title?.replace(/^File:/, '').replace(/\.[a-z]+$/i, '') || null,
         attribution: artist,
+        width: info.width,
+        height: info.height,
       };
     })
     .filter(Boolean);
+}
+
+export async function searchCommonsPhotos(query, limit = 4) {
+  if (!query) return [];
+  const results = await commonsSearch(query, limit, 1024);
+  return results.map(({ width, height, ...photo }) => photo);
+}
+
+// Titles that usually mean a photo won't read well as a small landscape card.
+const UNSUITABLE_TITLE = /\b(bw|b&w|black and white|monochrome|hdr|panorama|pano|night|interior detail|map|diagram|logo|painting)\b/i;
+
+function suitsCard({ width, height, caption }) {
+  if (!width || !height) return false;
+  const ratio = width / height;
+  return ratio >= 1.3 && ratio <= 2.2 && !UNSUITABLE_TITLE.test(caption || '');
+}
+
+function mentions(caption, category) {
+  const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return norm(caption).includes(norm(category));
+}
+
+// Picks one generic, good-looking photo for a category like "Beach" or
+// "Café". Searches Commons' reviewed "Quality images" first (sharp, well
+// exposed, no paintings or scans), then falls back to a plain search for
+// categories too niche to have any.
+export async function searchCategoryPhoto(category) {
+  if (!category) return null;
+  const searches = [
+    `${category} filetype:bitmap filew:>1600 incategory:Quality_images`,
+    `${category} filetype:bitmap filew:>1600`,
+  ];
+  for (const search of searches) {
+    const results = (await commonsSearch(search, 10, 1600)).filter(suitsCard);
+    // Search matches description text too, so a title naming the category
+    // ("…Aquarium…" rather than a fish close-up) is the safer pick.
+    const pick = results.find((p) => mentions(p.caption, category)) || results[0];
+    if (pick) {
+      const { width, height, ...photo } = pick;
+      return photo;
+    }
+  }
+  return null;
 }

@@ -5,11 +5,13 @@ import { extractPhone, extractWebsite, telHref } from './contact.js';
 import { buildDedupeKey } from './dedupeKey.js';
 import { shortLabel } from './shortLabel.js';
 import { searchStockPhoto } from './pexels.js';
-import { searchCommonsPhotos } from './wikimedia.js';
+import { searchCategoryPhoto } from './wikimedia.js';
 
 const PLACES = 'places';
 const META = 'meta';
-const CATEGORY_PHOTOS_DOC = 'categoryPhotos';
+// Bump the version to discard previously cached picks after changing how
+// category photos are chosen.
+const CATEGORY_PHOTOS_DOC = 'categoryPhotos_v2';
 
 function slugifyCategory(label) {
   return String(label || '')
@@ -29,8 +31,7 @@ async function fetchCategoryPhoto(category) {
     const pexels = await searchStockPhoto(category);
     if (pexels) return pexels;
   }
-  const [commons] = await searchCommonsPhotos(category, 1);
-  return commons || null;
+  return searchCategoryPhoto(category);
 }
 
 // Category-level stock photos are cached indefinitely in one small Firestore

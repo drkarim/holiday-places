@@ -9,6 +9,19 @@
   margin-bottom: 16px;
 }
 
+.home-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.barbados-flag {
+  flex: none;
+  border-radius: 3px;
+  /* the flag's blue bands would vanish into the page background otherwise */
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85);
+}
+
 .home-header h1 {
   font-size: 24px;
   margin: 0;

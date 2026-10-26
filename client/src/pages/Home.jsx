@@ -7,6 +7,7 @@ import { SearchBar } from '../components/SearchBar.jsx';
 import { Chips } from '../components/Chips.jsx';
 import { FilterBar } from '../components/FilterBar.jsx';
 import { PlaceCard } from '../components/PlaceCard.jsx';
+import { BarbadosFlag } from '../components/BarbadosFlag.jsx';
 import './Home.css';
 
 export function Home() {
@@ -89,7 +90,10 @@ export function Home() {
   return (
     <div className="home-page">
       <div className="home-header">
-        <h1>Holiday Places</h1>
+        <div className="home-title">
+          <h1>Holiday Places</h1>
+          <BarbadosFlag height={24} />
+        </div>
         <Link to="/places/new" className="btn btn-primary add-btn" aria-label="Add a place">
           + Add
         </Link>

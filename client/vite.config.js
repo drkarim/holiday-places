@@ -37,7 +37,11 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'place-images',
-              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              // Photos come from other sites (Wikimedia, Firebase Storage,
+              // pasted URLs), which the browser hands back as "opaque"
+              // responses (status 0). Workbox skips those unless told to.
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true },
             },
           },
         ],

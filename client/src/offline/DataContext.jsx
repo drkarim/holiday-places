@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import * as db from './db.js';
+import { warmPhotoCache } from './photoCache.js';
 
 const DataContext = createContext(null);
 
@@ -34,6 +35,7 @@ export function DataProvider({ children }) {
     await db.saveAllPlaces(freshPlaces);
     setSchema(freshSchema);
     setPlaces(freshPlaces);
+    warmPhotoCache(freshPlaces); // background; never blocks the UI
     return freshPlaces;
   }, []);
 

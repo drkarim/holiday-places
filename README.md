@@ -273,7 +273,9 @@ console.
 
 - The full place list (all text fields) is mirrored into IndexedDB, so
   search/filter/detail all work with no signal.
-- Photos you've already viewed are cached by the service worker.
+- Every place's photos (its own and its category stock photo) are downloaded
+  in the background whenever the app opens online, so they show offline even
+  if you never scrolled to them. Open the app once on Wi-Fi before heading out.
 - Adding a place or editing one while offline queues the change locally (you'll
   see a "pending sync" badge); it's sent automatically once you're back online.
 - File uploads and the "find photos online" action need a connection (there's

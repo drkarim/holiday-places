@@ -53,6 +53,23 @@ async function resolveCategoryPhoto(category) {
   return photo;
 }
 
+// Umbrella words that make a poor photo search on their own, e.g. the
+// "Activity" in "Activity / Snorkelling".
+const GENERIC_CATEGORIES = new Set([
+  'activity', 'activities', 'attraction', 'attractions', 'experience', 'leisure',
+  'entertainment', 'sport', 'sports', 'tour', 'things to do', 'other', 'misc',
+]);
+
+// The term a category photo is searched (and cached) by: normally the short
+// label, but the next "/"-separated part when the label is just an umbrella
+// word ("Activity / Snorkelling" -> "Snorkelling").
+function photoCategory(typeValue) {
+  const category = shortLabel(typeValue);
+  if (!category || !GENERIC_CATEGORIES.has(category.toLowerCase())) return category;
+  const specific = String(typeValue).split('/')[1];
+  return (specific && shortLabel(specific)) || category;
+}
+
 // Attaches a `categoryPhoto` to any place that has no real photos of its
 // own, resolving each distinct category at most once per call.
 async function attachCategoryPhotos(places, schema) {
@@ -62,7 +79,7 @@ async function attachCategoryPhotos(places, schema) {
   const needed = new Map(); // category -> promise
   for (const place of places) {
     if (place.photos.length) continue;
-    const category = shortLabel(place.fields[typeField.key]);
+    const category = photoCategory(place.fields[typeField.key]);
     if (!category || needed.has(category)) continue;
     needed.set(category, resolveCategoryPhoto(category));
   }
@@ -74,7 +91,7 @@ async function attachCategoryPhotos(places, schema) {
 
   for (const place of places) {
     if (place.photos.length) continue;
-    const category = shortLabel(place.fields[typeField.key]);
+    const category = photoCategory(place.fields[typeField.key]);
     place.categoryPhoto = resolved.get(category) || null;
   }
   return places;

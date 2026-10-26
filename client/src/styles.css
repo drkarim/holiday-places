@@ -1,35 +1,24 @@
 :root {
-  --bg: #0f172a;
-  --bg-elevated: #1a2740;
-  --bg-card: #18233c;
-  --text: #f1f5f9;
-  --text-dim: #9fb0c9;
-  --accent: #38bdf8;
-  --accent-text: #04202e;
-  --border: #2a3a58;
+  /* Barbados flag: ultramarine background, gold buttons. One palette for
+     light and dark system modes, since the blue is the point. */
+  --flag-blue: #00267f;
+  --flag-gold: #ffc726;
+  --bg: var(--flag-blue);
+  --bg-elevated: #0a3594;
+  --bg-card: #07308b;
+  --text: #ffffff;
+  --text-dim: #c3cff0;
+  --accent: var(--flag-gold);
+  --accent-text: var(--flag-blue);
+  --border: #2b51ad;
   --danger: #f87171;
   --success: #4ade80;
-  --chip-bg: #223252;
-  --chip-active-bg: #38bdf8;
-  --chip-active-text: #04202e;
+  --chip-bg: #123d9e;
+  --chip-active-bg: var(--flag-gold);
+  --chip-active-text: var(--flag-blue);
+  --overlay: 0, 38, 127; /* flag blue as an rgb triple, for rgba() tints */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f6f8fb;
-    --bg-elevated: #ffffff;
-    --bg-card: #ffffff;
-    --text: #0f172a;
-    --text-dim: #51607a;
-    --accent: #0284c7;
-    --accent-text: #ffffff;
-    --border: #dbe3ee;
-    --chip-bg: #e7edf5;
-    --chip-active-bg: #0284c7;
-    --chip-active-text: #ffffff;
-  }
 }
 
 * {
@@ -88,9 +77,9 @@ button {
 }
 
 .btn-secondary {
-  background: var(--bg-elevated);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--accent);
+  border: 2px solid var(--accent);
 }
 
 .btn-danger {

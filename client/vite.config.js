@@ -19,8 +19,8 @@ export default defineConfig({
         name: 'Holiday Places',
         short_name: 'Places',
         description: 'Find, filter and open your logged holiday places.',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#00267f',
+        background_color: '#00267f',
         display: 'standalone',
         start_url: '/',
         icons: [

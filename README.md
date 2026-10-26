@@ -254,17 +254,19 @@ Validation and auth failures return a JSON body like
 A place's own photos (pasted URL, uploaded, or fetched from Wikimedia) always
 take priority. If a place has none, the API fills in a `categoryPhoto` —
 one free stock photo per *category* (its short Type label — "Beach", "Café",
-etc.), not a real photo of that specific place. It comes from Wikimedia
-Commons' reviewed "Quality images" (landscape, sharp, no paintings or scans),
+etc.), not a real photo of that specific place. It first looks on Wikimedia
+Commons for a photo taken in `PHOTO_LOCATION` (default `Barbados`) whose
+title names both the category and the place; otherwise it uses Commons'
+reviewed "Quality images" (landscape, sharp, no paintings or scans),
 falling back to a plain Commons search for niche categories. No key needed.
 If `PEXELS_API_KEY` is set, [Pexels](https://www.pexels.com/api/) is tried
 first.
 
-Each category's photo is fetched once and cached in Firestore (`meta/categoryPhotos_v2`)
+Each category's photo is fetched once and cached in Firestore (`meta/categoryPhotos_v3`)
 — the first request after a new category shows up fetches it, every request
 after that (and every place sharing that category) is instant from cache. To
 force a re-fetch (e.g. you don't like the one it picked), delete that
-category's key from the `meta/categoryPhotos_v2` document in the Firestore
+category's key from the `meta/categoryPhotos_v3` document in the Firestore
 console.
 
 ## 6. Offline behaviour

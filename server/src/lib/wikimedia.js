@@ -65,21 +65,40 @@ function mentions(caption, category) {
   return norm(caption).includes(norm(category));
 }
 
-// Picks one generic, good-looking photo for a category like "Beach" or
-// "Café". Searches Commons' reviewed "Quality images" first (sharp, well
-// exposed, no paintings or scans), then falls back to a plain search for
-// categories too niche to have any.
-export async function searchCategoryPhoto(category) {
+// Place names are proper nouns, so match case-sensitively as a whole word:
+// "Barbados" but not a café sign reading "BARbados".
+function namesPlace(caption, place) {
+  const strip = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const escaped = strip(place).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^\\p{L}])${escaped}($|[^\\p{L}])`, 'u').test(strip(caption));
+}
+
+// Picks one good-looking photo for a category like "Beach" or "Café".
+// With a location, first looks for a photo taken there whose title names
+// both ("Miami Beach, Barbados"); Commons has few reviewed images of small
+// places, so this tier is a plain search kept honest by the title check.
+// Otherwise uses Commons' reviewed "Quality images" (sharp, well exposed,
+// no paintings or scans), then a plain search for niche categories.
+export async function searchCategoryPhoto(category, location) {
   if (!category) return null;
-  const searches = [
-    `${category} filetype:bitmap filew:>1600 incategory:Quality_images`,
-    `${category} filetype:bitmap filew:>1600`,
-  ];
-  for (const search of searches) {
+  const tiers = [];
+  if (location) {
+    tiers.push({
+      search: `${category} ${location} filetype:bitmap filew:>1200`,
+      accept: (p) => mentions(p.caption, category) && namesPlace(p.caption, location),
+    });
+  }
+  tiers.push(
+    { search: `${category} filetype:bitmap filew:>1600 incategory:Quality_images` },
+    { search: `${category} filetype:bitmap filew:>1600` },
+  );
+  for (const { search, accept } of tiers) {
     const results = (await commonsSearch(search, 10, 1600)).filter(suitsCard);
     // Search matches description text too, so a title naming the category
     // ("…Aquarium…" rather than a fish close-up) is the safer pick.
-    const pick = results.find((p) => mentions(p.caption, category)) || results[0];
+    const pick = accept
+      ? results.find(accept)
+      : results.find((p) => mentions(p.caption, category)) || results[0];
     if (pick) {
       const { width, height, ...photo } = pick;
       return photo;

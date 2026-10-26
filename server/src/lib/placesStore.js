@@ -11,7 +11,12 @@ const PLACES = 'places';
 const META = 'meta';
 // Bump the version to discard previously cached picks after changing how
 // category photos are chosen.
-const CATEGORY_PHOTOS_DOC = 'categoryPhotos_v2';
+const CATEGORY_PHOTOS_DOC = 'categoryPhotos_v3';
+
+// Where the trip is, so category photos favour local shots ("Beach" ->
+// a Barbados beach). Set PHOTO_LOCATION to reuse the app for another trip,
+// or to an empty string for location-free photos.
+const PHOTO_LOCATION = process.env.PHOTO_LOCATION ?? 'Barbados';
 
 function slugifyCategory(label) {
   return String(label || '')
@@ -31,14 +36,15 @@ async function fetchCategoryPhoto(category) {
     const pexels = await searchStockPhoto(category);
     if (pexels) return pexels;
   }
-  return searchCategoryPhoto(category);
+  return searchCategoryPhoto(category, PHOTO_LOCATION);
 }
 
 // Category-level stock photos are cached indefinitely in one small Firestore
 // doc (not per-place) — a handful of categories, fetched once each, reused by
 // every place sharing that category and every request after the first.
 async function resolveCategoryPhoto(category) {
-  const key = slugifyCategory(category);
+  // Keyed with the location so changing PHOTO_LOCATION refetches.
+  const key = slugifyCategory(`${category} ${PHOTO_LOCATION}`);
   if (!key) return null;
 
   const ref = getDb().collection(META).doc(CATEGORY_PHOTOS_DOC);

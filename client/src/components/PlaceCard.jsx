@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { valueByRole, shortLabel } from '../lib/fieldHelpers.js';
+import { valueByRole, shortLabel, cardName } from '../lib/fieldHelpers.js';
 import { MapsButton } from './MapsButton.jsx';
 import './PlaceCard.css';
 
@@ -36,7 +36,7 @@ export function PlaceCard({ place, schema, distanceLabel }) {
         {place.pendingSync && <span className="pending-badge">Pending sync</span>}
       </div>
       <div className="place-card-body">
-        <h3>{name}</h3>
+        <h3 title={name}>{cardName(name)}</h3>
         <div className="place-card-meta">
           {type && <span className="place-card-type">{type}</span>}
           {area && <span>· {area}</span>}

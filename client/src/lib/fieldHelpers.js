@@ -70,3 +70,21 @@ export function shortLabel(text, maxWords = 3) {
   const short = words.length > maxWords ? words.slice(0, maxWords).join(' ') : clause;
   return short || String(text).trim();
 }
+
+// Names in the sheet often carry research notes: "Bottom Bay (Bottom Bay
+// Beach) – name confirmed by visitbarbados.org". Cards show just the name:
+// drop bracketed asides, then anything after a spaced dash or an "=".
+// Hyphens inside words ("Coca-Cola") are kept. The detail screen still
+// shows the full text.
+export function cardName(text) {
+  if (!text) return text;
+  let name = String(text);
+  let prev;
+  do {
+    prev = name;
+    name = name.replace(/\s*[([][^()[\]]*[)\]]/g, ''); // innermost first
+  } while (name !== prev);
+  name = name.split(/\s+[-–—]\s+|=/)[0];
+  name = name.replace(/[\s,;:(]+$/, '').trim();
+  return name || String(text).trim();
+}

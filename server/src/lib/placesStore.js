@@ -5,6 +5,7 @@ import { extractPhone, extractWebsite, telHref } from './contact.js';
 import { buildDedupeKey } from './dedupeKey.js';
 import { shortLabel } from './shortLabel.js';
 import { searchStockPhoto } from './pexels.js';
+import { searchCommonsPhotos } from './wikimedia.js';
 
 const PLACES = 'places';
 const META = 'meta';
@@ -16,6 +17,20 @@ function slugifyCategory(label) {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+// Prefer Pexels (curated stock photography) when a key is configured; fall
+// back to Wikimedia Commons (no key needed) otherwise, or if Pexels has
+// nothing for the query. This also means a category photo picked up on
+// Wikimedia upgrades automatically to Pexels later just by setting the key —
+// the cache below only remembers the photo, not which source it came from.
+async function fetchCategoryPhoto(category) {
+  if (process.env.PEXELS_API_KEY) {
+    const pexels = await searchStockPhoto(category);
+    if (pexels) return pexels;
+  }
+  const [commons] = await searchCommonsPhotos(category, 1);
+  return commons || null;
 }
 
 // Category-level stock photos are cached indefinitely in one small Firestore
@@ -30,7 +45,7 @@ async function resolveCategoryPhoto(category) {
   const cache = (snap.exists && snap.data()) || {};
   if (cache[key]) return cache[key];
 
-  const photo = await searchStockPhoto(category);
+  const photo = await fetchCategoryPhoto(category);
   if (!photo) return null;
 
   await ref.set({ [key]: photo }, { merge: true });

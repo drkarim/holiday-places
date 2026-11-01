@@ -252,7 +252,25 @@ Validation and auth failures return a JSON body like
 ## 5. Photos
 
 A place's own photos (pasted URL, uploaded, or fetched from Wikimedia) always
-take priority. If a place has none, the API fills in a `categoryPhoto` —
+take priority. Next comes a `googlePhoto`: the first Google Maps photo of
+that exact place, when `GOOGLE_PLACES_API_KEY` is set (Places API (New) on a
+Google Cloud project with billing). Each place is matched to its Google
+listing once by searching "{name}, {PHOTO_LOCATION}"; the result is stored on
+the place as `google`, and a result whose name doesn't resemble ours is
+rejected rather than risk showing the wrong business. Only the Google place
+ID is stored, as Google's terms require; the image is served through
+`GET /api/places/:id/google-photo`, which redirects to Google so the key
+stays on the server. To fix a match:
+
+```bash
+curl -X PUT https://<your-app>/api/places/<id>/google-match \
+  -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"query": "Kira'"'"'s Kuisine Bridgetown"}'   # or {"placeId": "ChIJ..."}, {"none": true}, {"reset": true}
+```
+
+The app's detail screen also has a "Wrong place? Hide Google photo" button.
+
+If a place has neither, the API fills in a `categoryPhoto` —
 one free stock photo per *category* (its short Type label — "Beach", "Café",
 etc.), not a real photo of that specific place. It first looks on Wikimedia
 Commons for a photo taken in `PHOTO_LOCATION` (default `Barbados`) whose

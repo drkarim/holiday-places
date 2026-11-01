@@ -6,6 +6,8 @@ import { buildDedupeKey } from './dedupeKey.js';
 import { shortLabel } from './shortLabel.js';
 import { searchStockPhoto } from './pexels.js';
 import { searchCategoryPhoto } from './wikimedia.js';
+import { cardName } from './cardName.js';
+import { googlePlacesEnabled, findGooglePlace, getGooglePhoto } from './googlePlaces.js';
 
 const PLACES = 'places';
 const META = 'meta';
@@ -16,7 +18,7 @@ const CATEGORY_PHOTOS_DOC = 'categoryPhotos_v3';
 // Where the trip is, so category photos favour local shots ("Beach" ->
 // a Barbados beach). Set PHOTO_LOCATION to reuse the app for another trip,
 // or to an empty string for location-free photos.
-const PHOTO_LOCATION = process.env.PHOTO_LOCATION ?? 'Barbados';
+export const PHOTO_LOCATION = process.env.PHOTO_LOCATION ?? 'Barbados';
 
 function slugifyCategory(label) {
   return String(label || '')
@@ -84,7 +86,7 @@ async function attachCategoryPhotos(places, schema) {
 
   const needed = new Map(); // category -> promise
   for (const place of places) {
-    if (place.photos.length) continue;
+    if (place.photos.length || place.googlePhoto) continue;
     const category = photoCategory(place.fields[typeField.key]);
     if (!category || needed.has(category)) continue;
     needed.set(category, resolveCategoryPhoto(category));
@@ -96,11 +98,71 @@ async function attachCategoryPhotos(places, schema) {
   }
 
   for (const place of places) {
-    if (place.photos.length) continue;
+    if (place.photos.length || place.googlePhoto) continue;
     const category = photoCategory(place.fields[typeField.key]);
     place.categoryPhoto = resolved.get(category) || null;
   }
   return places;
+}
+
+// Links a place to its Google listing, once: the result (including "no
+// match") is stored on the place as `google`, and only redone when the name
+// changes. A hand-picked match (`manual`) is kept even then.
+async function ensureGoogleMatch(doc, schema) {
+  const nameField = fieldByRole(schema, 'name');
+  const name = cardName(nameField ? doc.fields?.[nameField.key] : '');
+  const stored = doc.google;
+  if (stored && (stored.manual || stored.forName === name)) return stored.placeId || null;
+  if (!name) return null;
+
+  try {
+    const match = await findGooglePlace(name, PHOTO_LOCATION);
+    const google = {
+      placeId: match?.placeId || null,
+      googleName: match?.googleName || null,
+      forName: name,
+      checkedAt: new Date().toISOString(),
+    };
+    await getDb().collection(PLACES).doc(doc.id).set({ google }, { merge: true });
+    doc.google = google;
+    return google.placeId;
+  } catch (err) {
+    console.warn(`Google match failed for "${name}", will retry later:`, err.message);
+    return stored?.placeId || null;
+  }
+}
+
+export function googlePhotoFor(placeId, photo, id) {
+  return {
+    id: 'google',
+    // placeId in the URL so a re-matched place doesn't hit the old cached image
+    url: `/api/places/${id}/google-photo?ref=${encodeURIComponent(placeId.slice(-12))}`,
+    source: 'google',
+    caption: null,
+    attribution: photo.author ? `Photo: ${photo.author} · Google Maps` : 'Photo: Google Maps',
+  };
+}
+
+async function inBatches(items, size, fn) {
+  for (let i = 0; i < items.length; i += size) {
+    await Promise.all(items.slice(i, i + size).map(fn));
+  }
+}
+
+// Adds a Google Maps photo to places that have none of their own. Matching
+// runs once per place (stored); photo details come from an in-memory cache.
+async function attachGooglePhotos(entries, schema) {
+  if (!googlePlacesEnabled()) return;
+  await inBatches(
+    entries.filter(({ place }) => !place.photos.length),
+    6,
+    async ({ place, doc }) => {
+      const placeId = await ensureGoogleMatch(doc, schema);
+      if (!placeId) return;
+      const photo = await getGooglePhoto(placeId);
+      if (photo) place.googlePhoto = googlePhotoFor(placeId, photo, place.id);
+    }
+  );
 }
 
 export async function getSchema() {
@@ -163,6 +225,7 @@ export function decoratePlace(doc, schema) {
     visited: !!doc.visited,
     userNotes: doc.userNotes || '',
     photos: doc.photos || [],
+    googlePhoto: null,
     categoryPhoto: null,
     coords: doc.coords || null,
     mapsUrl,
@@ -174,8 +237,13 @@ export function decoratePlace(doc, schema) {
 
 export async function listPlaces() {
   const [schema, snap] = await Promise.all([getSchema(), getDb().collection(PLACES).get()]);
-  const places = snap.docs
-    .map((d) => decoratePlace({ id: d.id, ...d.data() }, schema))
+  const entries = snap.docs.map((d) => {
+    const doc = { id: d.id, ...d.data() };
+    return { doc, place: decoratePlace(doc, schema) };
+  });
+  await attachGooglePhotos(entries, schema);
+  const places = entries
+    .map(({ place }) => place)
     .sort((a, b) => {
       const an = (fieldByRole(schema, 'name') && a.fields[fieldByRole(schema, 'name').key]) || '';
       const bn = (fieldByRole(schema, 'name') && b.fields[fieldByRole(schema, 'name').key]) || '';
@@ -187,7 +255,9 @@ export async function listPlaces() {
 export async function getPlace(id) {
   const [schema, snap] = await Promise.all([getSchema(), getDb().collection(PLACES).doc(id).get()]);
   if (!snap.exists) return null;
-  const place = decoratePlace({ id: snap.id, ...snap.data() }, schema);
+  const doc = { id: snap.id, ...snap.data() };
+  const place = decoratePlace(doc, schema);
+  await attachGooglePhotos([{ doc, place }], schema);
   const [decorated] = await attachCategoryPhotos([place], schema);
   return decorated;
 }
@@ -294,5 +364,22 @@ export async function removePhoto(id, photoId) {
   if (!snap.exists) return null;
   const photos = (snap.data().photos || []).filter((p) => p.id !== photoId);
   await ref.set({ photos }, { merge: true });
+  return getPlace(id);
+}
+
+// Raw stored Google link for a place: { placeId, manual, ... } or null.
+export async function getGoogleLink(id) {
+  const snap = await getDb().collection(PLACES).doc(id).get();
+  return snap.exists ? snap.data().google || null : undefined;
+}
+
+// Overrides the automatic Google match: a placeId (or null to show no Google
+// photo), or `undefined` to clear it and let the automatic match run again.
+export async function setGoogleLink(id, google) {
+  const admin = getAdmin();
+  const ref = getDb().collection(PLACES).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  await ref.update({ google: google === undefined ? admin.firestore.FieldValue.delete() : google });
   return getPlace(id);
 }

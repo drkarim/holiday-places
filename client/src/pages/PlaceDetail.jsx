@@ -82,6 +82,18 @@ export function PlaceDetail() {
     }
   }
 
+  async function onHideGooglePhoto() {
+    if (!window.confirm('Hide this Google photo? Use it when Google matched the wrong place.')) return;
+    setBusy(true);
+    try {
+      await applyServerPlace(await api.hideGooglePhoto(place.id));
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onDelete() {
     if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
     await deletePlace(place.id);
@@ -100,6 +112,8 @@ export function PlaceDetail() {
         photos={
           place.photos.length
             ? place.photos
+            : place.googlePhoto
+            ? [place.googlePhoto]
             : place.categoryPhoto
             ? [{ ...place.categoryPhoto, isStock: true }]
             : []
@@ -160,6 +174,11 @@ export function PlaceDetail() {
             <button className="btn btn-secondary" onClick={onFetchWikimedia} disabled={busy}>
               🔍 Find photos online
             </button>
+            {!place.photos.length && place.googlePhoto && (
+              <button className="btn btn-secondary" onClick={onHideGooglePhoto} disabled={busy}>
+                🚫 Wrong place? Hide Google photo
+              </button>
+            )}
           </div>
         </section>
 

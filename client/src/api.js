@@ -41,5 +41,6 @@ export const api = {
     return request(`/api/places/${id}/photos/upload`, { method: 'POST', body: form, isForm: true });
   },
   fetchWikimediaPhotos: (id) => request(`/api/places/${id}/photos/fetch`, { method: 'POST', body: {} }),
+  hideGooglePhoto: (id) => request(`/api/places/${id}/google-match`, { method: 'PUT', body: { none: true } }),
   deletePhoto: (id, photoId) => request(`/api/places/${id}/photos/${photoId}`, { method: 'DELETE' }),
 };

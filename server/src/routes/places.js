@@ -7,7 +7,17 @@ import {
   createPlace,
   updatePlace,
   deletePlace,
+  getGoogleLink,
+  setGoogleLink,
+  PHOTO_LOCATION,
 } from '../lib/placesStore.js';
+import {
+  googlePlacesEnabled,
+  findGooglePlace,
+  getGooglePhoto,
+  forgetGooglePhoto,
+  googlePhotoUrl,
+} from '../lib/googlePlaces.js';
 import { mapRequestToFields, getRoleValue } from '../lib/requestMapping.js';
 import photosRouter from './photos.js';
 
@@ -86,6 +96,69 @@ router.delete('/:id', requireApiToken, async (req, res, next) => {
     if (!existing) return res.status(404).json({ error: 'Place not found.' });
     await deletePlace(req.params.id);
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// The place's Google Maps photo. Redirects to a short-lived Google image URL,
+// so the API key never reaches the browser; the app's service worker caches
+// the image under this URL for offline use.
+router.get('/:id/google-photo', async (req, res, next) => {
+  try {
+    if (!googlePlacesEnabled()) return res.status(404).end();
+    const placeId = (await getGoogleLink(req.params.id))?.placeId;
+    if (!placeId) return res.status(404).end();
+
+    let url = null;
+    for (let attempt = 0; attempt < 2 && !url; attempt++) {
+      const photo = await getGooglePhoto(placeId);
+      if (!photo) return res.status(404).end();
+      try {
+        url = await googlePhotoUrl(photo.name);
+      } catch (err) {
+        // Photo names expire; drop the cached one and look it up again.
+        forgetGooglePhoto(placeId);
+        if (attempt) throw err;
+      }
+    }
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.redirect(302, url);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Correct the automatic Google match for a place. Body, one of:
+//   { "none": true }          show no Google photo for this place
+//   { "query": "Kira's Kuisine Bridgetown" }  search Google with this text
+//   { "placeId": "ChIJ..." }  use this exact Google place
+//   { "reset": true }         forget any override and match automatically
+router.put('/:id/google-match', requireApiToken, async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    let google;
+    if (body.reset) {
+      google = undefined;
+    } else if (body.none) {
+      google = { placeId: null, manual: true, checkedAt: new Date().toISOString() };
+    } else if (body.placeId || body.query) {
+      let placeId = body.placeId;
+      let googleName = null;
+      if (!placeId) {
+        if (!googlePlacesEnabled()) return res.status(503).json({ error: 'GOOGLE_PLACES_API_KEY is not set.' });
+        const match = await findGooglePlace(String(body.query), PHOTO_LOCATION, { strict: false });
+        if (!match) return res.status(404).json({ error: `Google found nothing for "${body.query}".` });
+        ({ placeId, googleName } = match);
+      }
+      google = { placeId: String(placeId), googleName, manual: true, checkedAt: new Date().toISOString() };
+    } else {
+      return res.status(400).json({ error: 'Send one of: none, query, placeId, reset.' });
+    }
+
+    const place = await setGoogleLink(req.params.id, google);
+    if (!place) return res.status(404).json({ error: 'Place not found.' });
+    res.json(place);
   } catch (err) {
     next(err);
   }

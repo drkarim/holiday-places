@@ -10,8 +10,9 @@ export function PlaceCard({ place, schema, distanceLabel }) {
   const type = shortLabel(valueByRole(schema, place, 'type'));
   const area = valueByRole(schema, place, 'area');
   const sheetDistance = valueByRole(schema, place, 'distance');
-  const photo = place.photos?.[0] || place.categoryPhoto;
-  const isStockPhoto = !place.photos?.[0] && !!place.categoryPhoto;
+  const photo = place.photos?.[0] || place.googlePhoto || place.categoryPhoto;
+  const isStockPhoto = photo === place.categoryPhoto && !!photo;
+  const isGooglePhoto = photo === place.googlePhoto && !!photo;
 
   function goToDetail() {
     navigate(`/places/${place.id}`);
@@ -32,6 +33,7 @@ export function PlaceCard({ place, schema, distanceLabel }) {
           <div className="place-card-placeholder">🏝️</div>
         )}
         {isStockPhoto && <span className="stock-photo-badge">Stock photo</span>}
+        {isGooglePhoto && <span className="stock-photo-badge">{photo.attribution}</span>}
         {place.visited && <span className="visited-badge">Visited</span>}
         {place.pendingSync && <span className="pending-badge">Pending sync</span>}
       </div>

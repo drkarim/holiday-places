@@ -8,6 +8,7 @@ function photoUrls(places) {
   const urls = new Set();
   for (const place of places) {
     for (const photo of place.photos || []) if (photo.url) urls.add(photo.url);
+    if (place.googlePhoto?.url) urls.add(place.googlePhoto.url);
     if (place.categoryPhoto?.url) urls.add(place.categoryPhoto.url);
   }
   return [...urls];

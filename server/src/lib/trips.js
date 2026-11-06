@@ -91,9 +91,9 @@ export async function listTrips() {
     .map((d) => ({ slug: d.id, ...d.data() }))
     .filter((t) => t.listed !== false);
   return Promise.all(
-    trips.map(async ({ slug, name, city, country, countryCode, theme }) => {
+    trips.map(async ({ slug, name, city, country, countryCode, theme, colors }) => {
       const count = await getDb().collection(PLACES).where('tripId', '==', slug).count().get();
-      return { slug, name, city, country, countryCode, theme, placeCount: count.data().count };
+      return { slug, name, city, country, countryCode, theme, colors: colors || null, placeCount: count.data().count };
     })
   );
 }
@@ -116,7 +116,31 @@ export async function updateTrip(slug, patch) {
   return getTrip(slug);
 }
 
-export async function createTrip({ slug, name, city, country, countryCode, theme }) {
+// A trip's own colours, usually taken from its flag, for countries without
+// a built-in theme: { background, button, buttonText?, highlight? } as
+// #rrggbb. The app keeps them readable (see client/src/lib/themes.js).
+const COLOR_KEYS = ['background', 'button', 'buttonText', 'highlight'];
+const HEX = /^#[0-9a-f]{6}$/i;
+
+// Returns the cleaned colours, null for "none", or throws a 400 explaining
+// what's wrong.
+export function parseColors(colors) {
+  if (colors == null) return null;
+  const bad = (msg) => Object.assign(new Error(`colors: ${msg}`), { status: 400 });
+  if (typeof colors !== 'object' || Array.isArray(colors)) throw bad('send an object.');
+  const unknown = Object.keys(colors).filter((k) => !COLOR_KEYS.includes(k));
+  if (unknown.length) throw bad(`unknown key(s) ${unknown.join(', ')}; use ${COLOR_KEYS.join(', ')}.`);
+  if (!colors.background || !colors.button) throw bad('background and button are required.');
+  const clean = {};
+  for (const key of COLOR_KEYS) {
+    if (colors[key] == null) continue;
+    if (!HEX.test(colors[key])) throw bad(`${key} must be a #rrggbb colour, e.g. #d80621.`);
+    clean[key] = colors[key].toLowerCase();
+  }
+  return clean;
+}
+
+export async function createTrip({ slug, name, city, country, countryCode, theme, colors }) {
   const editKey = newEditKey();
   const ref = getDb().collection(TRIPS).doc(slug);
   if ((await ref.get()).exists) throw Object.assign(new Error(`Trip "${slug}" already exists.`), { status: 409 });
@@ -126,6 +150,7 @@ export async function createTrip({ slug, name, city, country, countryCode, theme
     country,
     countryCode: String(countryCode || '').toUpperCase() || null,
     theme: theme || null,
+    colors: parseColors(colors),
     editKeyHash: hashKey(editKey),
     schema: buildSchemaFromHeaders(TEMPLATE_HEADERS),
     createdAt: new Date().toISOString(),

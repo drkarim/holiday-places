@@ -62,9 +62,72 @@ const VARS = {
   overlay: '--overlay',
 };
 
-// Countries without a preset use the Barbados colours for now.
-export function applyTheme(name) {
-  const theme = THEMES[name] || THEMES.barbados;
+// --- Themes from a trip's own colours (trip.colors, usually its flag's) ---
+
+function rgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function toHex([r, g, b]) {
+  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+}
+
+// t = 0 gives a, t = 1 gives b.
+function mix(a, b, t) {
+  const [x, y] = [rgb(a), rgb(b)];
+  return toHex(x.map((v, i) => v + (y[i] - v) * t));
+}
+
+function luminance(hex) {
+  const [r, g, b] = rgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a, b) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// Text and cards are white-on-background, so a light flag colour (e.g.
+// Japan's white) is darkened until white text reads well on it. Button
+// text, outlines and highlights fall back to white or a lighter tint
+// whenever the flag colour would be too faint.
+export function themeFromColors({ background, button, buttonText, highlight }) {
+  let bg = background;
+  for (let i = 0; i < 12 && contrast(bg, '#ffffff') < 7; i++) bg = mix(bg, '#000000', 0.15);
+  const bgCard = mix(bg, '#ffffff', 0.04);
+  let hi = highlight || button;
+  for (let i = 0; i < 8 && contrast(hi, bgCard) < 4.5; i++) hi = mix(hi, '#ffffff', 0.25);
+  return {
+    bg,
+    bgElevated: mix(bg, '#ffffff', 0.07),
+    bgCard,
+    textDim: mix('#ffffff', bg, 0.25),
+    accent: button,
+    accentText: buttonText || (contrast(button, '#ffffff') >= 4.5 ? '#ffffff' : bg),
+    secondary: contrast(button, bg) >= 3 ? button : '#ffffff',
+    highlight: hi,
+    border: mix(bg, '#ffffff', 0.18),
+    chipBg: mix(bg, '#ffffff', 0.1),
+    overlay: rgb(bg).join(', '),
+  };
+}
+
+// A trip's theme: its built-in preset if it has one, else one made from its
+// own colours, else the Barbados colours.
+export function themeFor(trip) {
+  if (trip?.theme && THEMES[trip.theme]) return THEMES[trip.theme];
+  if (trip?.colors?.background && trip.colors.button) return themeFromColors(trip.colors);
+  return THEMES.barbados;
+}
+
+// Takes a theme name or a theme object (from themeFor).
+export function applyTheme(nameOrTheme) {
+  const theme = typeof nameOrTheme === 'object' && nameOrTheme ? nameOrTheme : THEMES[nameOrTheme] || THEMES.barbados;
   const root = document.documentElement.style;
   for (const [key, cssVar] of Object.entries(VARS)) root.setProperty(cssVar, theme[key]);
   root.setProperty('--chip-active-bg', theme.accent);

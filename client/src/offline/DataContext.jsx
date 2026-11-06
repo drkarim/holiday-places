@@ -3,7 +3,7 @@ import { tripApi } from '../api.js';
 import * as db from './db.js';
 import { warmPhotoCache } from './photoCache.js';
 import { getEditKey, removeEditKey, rememberTrip } from '../lib/tripAccess.js';
-import { applyTheme } from '../lib/themes.js';
+import { applyTheme, themeFor } from '../lib/themes.js';
 
 const DataContext = createContext(null);
 const LEGACY_TRIP = 'barbados';
@@ -66,8 +66,14 @@ export function DataProvider({ tripSlug, children }) {
   const showTrip = useCallback(
     (info) => {
       setTrip(info);
-      applyTheme(info.theme);
-      rememberTrip({ slug: tripSlug, name: info.name, countryCode: info.countryCode, theme: info.theme });
+      applyTheme(themeFor(info));
+      rememberTrip({
+        slug: tripSlug,
+        name: info.name,
+        countryCode: info.countryCode,
+        theme: info.theme,
+        colors: info.colors,
+      });
     },
     [tripSlug]
   );

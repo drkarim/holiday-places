@@ -24,15 +24,20 @@ export async function importXlsx(filePath, tripSlug = LEGACY_TRIP) {
 // place's photos; the sheet's header row becomes the trip's columns.
 export async function importWorkbook(buffer, { tripSlug = LEGACY_TRIP, sourceName = null } = {}) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
-  const sheetName = wb.SheetNames[0];
-  const ws = sheetName && wb.Sheets[sheetName];
-  if (!ws || !ws['!ref']) throw Object.assign(new Error('The spreadsheet is empty.'), { status: 400 });
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-
-  const headers = (rows[0] || []).map((h) => (h == null ? '' : String(h).trim()));
-  const schema = buildSchemaFromHeaders(headers);
-  const missingRoles = ['name', 'type', 'area'].filter((role) => !fieldByRole(schema, role));
+  const sheets = wb.SheetNames.map((name) => {
+    const ws = wb.Sheets[name];
+    const rows = ws?.['!ref'] ? XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) : [];
+    const headers = (rows[0] || []).map((h) => (h == null ? '' : String(h).trim()));
+    const schema = buildSchemaFromHeaders(headers);
+    const missingRoles = ['name', 'type', 'area'].filter((role) => !fieldByRole(schema, role));
+    return { ws, rows, schema, missingRoles };
+  });
+  if (!sheets.some((s) => s.rows.length)) {
+    throw Object.assign(new Error('The spreadsheet is empty.'), { status: 400 });
+  }
+  // Workbooks often open with a notes tab; use the first tab that has the
+  // columns we need, falling back to the first tab for the error message.
+  const { ws, rows, schema, missingRoles } = sheets.find((s) => !s.missingRoles.length) || sheets[0];
   if (missingRoles.length) {
     throw Object.assign(
       new Error(
@@ -42,6 +47,7 @@ export async function importWorkbook(buffer, { tripSlug = LEGACY_TRIP, sourceNam
       { status: 400 }
     );
   }
+  const range = XLSX.utils.decode_range(ws['!ref']);
   await setSchema(schema, tripSlug);
 
   const rowNumberField = fieldByRole(schema, 'rowNumber');

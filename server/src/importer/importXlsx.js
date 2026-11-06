@@ -10,21 +10,39 @@ import { extractHyperlinkUrl } from '../lib/mapsLink.js';
 import { parseCoordsFromMapsUrl } from '../lib/geo.js';
 import { buildDedupeKey } from '../lib/dedupeKey.js';
 import { setSchema, upsertFromImport, setImportStatus } from '../lib/placesStore.js';
+import { updateTrip, LEGACY_TRIP } from '../lib/trips.js';
 
-export async function importXlsx(filePath) {
+export async function importXlsx(filePath, tripSlug = LEGACY_TRIP) {
   if (!existsSync(filePath)) {
     throw new Error(`File not found: ${filePath}`);
   }
+  return importWorkbook(readFileSync(filePath), { tripSlug, sourceName: path.basename(filePath) });
+}
 
-  const wb = XLSX.read(readFileSync(filePath), { type: 'buffer' });
+// Imports the first sheet of an .xlsx/.xls/.csv file (as a Buffer) into a
+// trip. Re-importing updates rows matched by name + address and keeps each
+// place's photos; the sheet's header row becomes the trip's columns.
+export async function importWorkbook(buffer, { tripSlug = LEGACY_TRIP, sourceName = null } = {}) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
+  const ws = sheetName && wb.Sheets[sheetName];
+  if (!ws || !ws['!ref']) throw Object.assign(new Error('The spreadsheet is empty.'), { status: 400 });
   const range = XLSX.utils.decode_range(ws['!ref']);
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-  const headers = rows[0];
+  const headers = (rows[0] || []).map((h) => (h == null ? '' : String(h).trim()));
   const schema = buildSchemaFromHeaders(headers);
-  await setSchema(schema);
+  const missingRoles = ['name', 'type', 'area'].filter((role) => !fieldByRole(schema, role));
+  if (missingRoles.length) {
+    throw Object.assign(
+      new Error(
+        `The first row needs column headings for: ${missingRoles.join(', ')}. ` +
+          'Download the template to see the expected headings.'
+      ),
+      { status: 400 }
+    );
+  }
+  await setSchema(schema, tripSlug);
 
   const rowNumberField = fieldByRole(schema, 'rowNumber');
   const nameField = fieldByRole(schema, 'name');
@@ -76,31 +94,31 @@ export async function importXlsx(filePath) {
     }
 
     const dedupeKey = buildDedupeKey(name, address);
-    const result = await upsertFromImport({ dedupeKey, fields, coords, mapsUrlRaw, rowNumber });
+    const result = await upsertFromImport({ tripId: tripSlug, dedupeKey, fields, coords, mapsUrlRaw, rowNumber });
     if (result.created) created++;
     else updated++;
   }
 
-  await setImportStatus({
-    importedAt: new Date().toISOString(),
-    sourceFile: path.basename(filePath),
-    created,
-    updated,
-    skipped,
-  });
+  const status = { importedAt: new Date().toISOString(), sourceFile: sourceName, created, updated, skipped };
+  if (tripSlug === LEGACY_TRIP) await setImportStatus(status);
+  await updateTrip(tripSlug, { lastImport: status });
 
   return { created, updated, skipped, totalFields: schema.fields.length };
 }
 
-// Allow running directly: `node src/importer/importXlsx.js [path/to/file.xlsx]`
+// Allow running directly:
+//   node src/importer/importXlsx.js [--trip <slug>] [path/to/file.xlsx]
 const isMain = process.argv[1] && process.argv[1].endsWith('importXlsx.js');
 if (isMain) {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-  const cliArg = process.argv[2];
+  const args = process.argv.slice(2);
+  const tripFlag = args.indexOf('--trip');
+  const tripSlug = tripFlag >= 0 ? args.splice(tripFlag, 2)[1] : LEGACY_TRIP;
+  const cliArg = args[0];
   const filePath = cliArg
     ? path.resolve(process.cwd(), cliArg)
     : path.resolve(repoRoot, process.env.XLSX_PATH || 'data/places.xlsx');
-  importXlsx(filePath)
+  importXlsx(filePath, tripSlug)
     .then((summary) => {
       console.log('Import complete:', summary);
       process.exit(0);

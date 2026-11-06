@@ -55,21 +55,22 @@ export function namesResemble(ours, theirs, location) {
 }
 
 // Returns { placeId, googleName } for a convincing match, null when Google
-// has nothing that resembles the name. Throws on API errors so callers don't
-// mistake an outage for "no match".
+// has nothing that resembles the name. `near` scopes the search ("Tromsø,
+// Norway") and the result's address must be in `country`. Throws on API
+// errors so callers don't mistake an outage for "no match".
 // Pass { strict: false } for a hand-typed search, where the user has already
 // decided the result is what they want.
-export async function findGooglePlace(name, location, { strict = true } = {}) {
+export async function findGooglePlace(name, { near, country } = {}, { strict = true } = {}) {
   const data = await call('places:searchText', {
     method: 'POST',
     fieldMask: 'places.id,places.displayName,places.formattedAddress',
-    body: { textQuery: location ? `${name}, ${location}` : name, pageSize: 1 },
+    body: { textQuery: near ? `${name}, ${near}` : name, pageSize: 1 },
   });
   const place = data.places?.[0];
   if (!place) return null;
   const googleName = place.displayName?.text || '';
-  if (strict && !namesResemble(name, googleName, location)) return null;
-  if (location && !String(place.formattedAddress || '').includes(location)) return null;
+  if (strict && !namesResemble(name, googleName, near)) return null;
+  if (country && !String(place.formattedAddress || '').includes(country)) return null;
   return { placeId: place.id, googleName };
 }
 

@@ -8,6 +8,7 @@ import { searchStockPhoto } from './pexels.js';
 import { searchCategoryPhoto } from './wikimedia.js';
 import { cardName } from './cardName.js';
 import { googlePlacesEnabled, findGooglePlace, getGooglePhoto } from './googlePlaces.js';
+import { getTrip, updateTrip, photoLocation, LEGACY_TRIP } from './trips.js';
 
 const PLACES = 'places';
 const META = 'meta';
@@ -15,10 +16,12 @@ const META = 'meta';
 // category photos are chosen.
 const CATEGORY_PHOTOS_DOC = 'categoryPhotos_v3';
 
-// Where the trip is, so category photos favour local shots ("Beach" ->
-// a Barbados beach). Set PHOTO_LOCATION to reuse the app for another trip,
-// or to an empty string for location-free photos.
-export const PHOTO_LOCATION = process.env.PHOTO_LOCATION ?? 'Barbados';
+// The place name Commons photo titles must mention for a category photo to
+// count as local: the trip's city, else its country ("Beach" -> a Barbados
+// beach, "Café" -> a Tromsø café).
+function commonsLocation(trip) {
+  return trip.city || trip.country || '';
+}
 
 function slugifyCategory(label) {
   return String(label || '')
@@ -33,20 +36,20 @@ function slugifyCategory(label) {
 // nothing for the query. This also means a category photo picked up on
 // Wikimedia upgrades automatically to Pexels later just by setting the key —
 // the cache below only remembers the photo, not which source it came from.
-async function fetchCategoryPhoto(category) {
+async function fetchCategoryPhoto(category, location) {
   if (process.env.PEXELS_API_KEY) {
     const pexels = await searchStockPhoto(category);
     if (pexels) return pexels;
   }
-  return searchCategoryPhoto(category, PHOTO_LOCATION);
+  return searchCategoryPhoto(category, location);
 }
 
 // Category-level stock photos are cached indefinitely in one small Firestore
 // doc (not per-place) — a handful of categories, fetched once each, reused by
 // every place sharing that category and every request after the first.
-async function resolveCategoryPhoto(category) {
-  // Keyed with the location so changing PHOTO_LOCATION refetches.
-  const key = slugifyCategory(`${category} ${PHOTO_LOCATION}`);
+async function resolveCategoryPhoto(category, location) {
+  // Keyed with the location, so each trip gets its own local picks.
+  const key = slugifyCategory(`${category} ${location}`);
   if (!key) return null;
 
   const ref = getDb().collection(META).doc(CATEGORY_PHOTOS_DOC);
@@ -54,7 +57,7 @@ async function resolveCategoryPhoto(category) {
   const cache = (snap.exists && snap.data()) || {};
   if (cache[key]) return cache[key];
 
-  const photo = await fetchCategoryPhoto(category);
+  const photo = await fetchCategoryPhoto(category, location);
   if (!photo) return null;
 
   await ref.set({ [key]: photo }, { merge: true });
@@ -80,8 +83,8 @@ function photoCategory(typeValue) {
 
 // Attaches a `categoryPhoto` to any place that has no real photos of its
 // own, resolving each distinct category at most once per call.
-async function attachCategoryPhotos(places, schema) {
-  const typeField = fieldByRole(schema, 'type');
+async function attachCategoryPhotos(places, trip) {
+  const typeField = fieldByRole(trip.schema, 'type');
   if (!typeField) return places;
 
   const needed = new Map(); // category -> promise
@@ -89,7 +92,7 @@ async function attachCategoryPhotos(places, schema) {
     if (place.photos.length || place.googlePhoto) continue;
     const category = photoCategory(place.fields[typeField.key]);
     if (!category || needed.has(category)) continue;
-    needed.set(category, resolveCategoryPhoto(category));
+    needed.set(category, resolveCategoryPhoto(category, commonsLocation(trip)));
   }
 
   const resolved = new Map();
@@ -108,15 +111,15 @@ async function attachCategoryPhotos(places, schema) {
 // Links a place to its Google listing, once: the result (including "no
 // match") is stored on the place as `google`, and only redone when the name
 // changes. A hand-picked match (`manual`) is kept even then.
-async function ensureGoogleMatch(doc, schema) {
-  const nameField = fieldByRole(schema, 'name');
+async function ensureGoogleMatch(doc, trip) {
+  const nameField = fieldByRole(trip.schema, 'name');
   const name = cardName(nameField ? doc.fields?.[nameField.key] : '');
   const stored = doc.google;
   if (stored && (stored.manual || stored.forName === name)) return stored.placeId || null;
   if (!name) return null;
 
   try {
-    const match = await findGooglePlace(name, PHOTO_LOCATION);
+    const match = await findGooglePlace(name, { near: photoLocation(trip), country: trip.country });
     const google = {
       placeId: match?.placeId || null,
       googleName: match?.googleName || null,
@@ -132,11 +135,11 @@ async function ensureGoogleMatch(doc, schema) {
   }
 }
 
-export function googlePhotoFor(placeId, photo, id) {
+export function googlePhotoFor(placeId, photo, id, tripSlug) {
   return {
     id: 'google',
     // placeId in the URL so a re-matched place doesn't hit the old cached image
-    url: `/api/places/${id}/google-photo?ref=${encodeURIComponent(placeId.slice(-12))}`,
+    url: `/api/trips/${tripSlug}/places/${id}/google-photo?ref=${encodeURIComponent(placeId.slice(-12))}`,
     source: 'google',
     caption: null,
     attribution: photo.author ? `Photo: ${photo.author} · Google Maps` : 'Photo: Google Maps',
@@ -151,27 +154,28 @@ async function inBatches(items, size, fn) {
 
 // Adds a Google Maps photo to places that have none of their own. Matching
 // runs once per place (stored); photo details come from an in-memory cache.
-async function attachGooglePhotos(entries, schema) {
+async function attachGooglePhotos(entries, trip) {
   if (!googlePlacesEnabled()) return;
   await inBatches(
     entries.filter(({ place }) => !place.photos.length),
     6,
     async ({ place, doc }) => {
-      const placeId = await ensureGoogleMatch(doc, schema);
+      const placeId = await ensureGoogleMatch(doc, trip);
       if (!placeId) return;
       const photo = await getGooglePhoto(placeId);
-      if (photo) place.googlePhoto = googlePhotoFor(placeId, photo, place.id);
+      if (photo) place.googlePhoto = googlePhotoFor(placeId, photo, place.id, trip.slug);
     }
   );
 }
 
-export async function getSchema() {
-  const snap = await getDb().collection(META).doc('schema').get();
-  return snap.exists ? snap.data() : { fields: [], generatedAt: null };
+// Each trip has its own spreadsheet columns.
+export async function getSchema(tripSlug = LEGACY_TRIP) {
+  const trip = await getTrip(tripSlug);
+  return trip?.schema || { fields: [], generatedAt: null };
 }
 
-export async function setSchema(schema) {
-  await getDb().collection(META).doc('schema').set(schema);
+export async function setSchema(schema, tripSlug = LEGACY_TRIP) {
+  await updateTrip(tripSlug, { schema });
 }
 
 export async function getImportStatus() {
@@ -221,6 +225,7 @@ export function decoratePlace(doc, schema) {
 
   return {
     id: doc.id,
+    tripId: doc.tripId || LEGACY_TRIP,
     fields,
     visited: !!doc.visited,
     userNotes: doc.userNotes || '',
@@ -235,13 +240,21 @@ export function decoratePlace(doc, schema) {
   };
 }
 
-export async function listPlaces() {
-  const [schema, snap] = await Promise.all([getSchema(), getDb().collection(PLACES).get()]);
+async function requireTrip(tripSlug) {
+  const trip = await getTrip(tripSlug);
+  if (!trip) throw Object.assign(new Error(`Trip "${tripSlug}" not found.`), { status: 404 });
+  return trip;
+}
+
+export async function listPlaces(tripSlug = LEGACY_TRIP) {
+  const trip = await requireTrip(tripSlug);
+  const schema = trip.schema;
+  const snap = await getDb().collection(PLACES).where('tripId', '==', trip.slug).get();
   const entries = snap.docs.map((d) => {
     const doc = { id: d.id, ...d.data() };
     return { doc, place: decoratePlace(doc, schema) };
   });
-  await attachGooglePhotos(entries, schema);
+  await attachGooglePhotos(entries, trip);
   const places = entries
     .map(({ place }) => place)
     .sort((a, b) => {
@@ -249,30 +262,40 @@ export async function listPlaces() {
       const bn = (fieldByRole(schema, 'name') && b.fields[fieldByRole(schema, 'name').key]) || '';
       return String(an).localeCompare(String(bn));
     });
-  return attachCategoryPhotos(places, schema);
+  return attachCategoryPhotos(places, trip);
 }
 
-export async function getPlace(id) {
-  const [schema, snap] = await Promise.all([getSchema(), getDb().collection(PLACES).doc(id).get()]);
+// With tripSlug, a place from another trip counts as not found, so one
+// trip's edit key can never reach another trip's places.
+export async function getPlace(id, tripSlug) {
+  const snap = await getDb().collection(PLACES).doc(id).get();
   if (!snap.exists) return null;
   const doc = { id: snap.id, ...snap.data() };
-  const place = decoratePlace(doc, schema);
-  await attachGooglePhotos([{ doc, place }], schema);
-  const [decorated] = await attachCategoryPhotos([place], schema);
+  const placeTrip = doc.tripId || LEGACY_TRIP;
+  if (tripSlug && placeTrip !== tripSlug) return null;
+  const trip = await requireTrip(placeTrip);
+  const place = decoratePlace(doc, trip.schema);
+  await attachGooglePhotos([{ doc, place }], trip);
+  const [decorated] = await attachCategoryPhotos([place], trip);
   return decorated;
 }
 
-export async function findByDedupeKey(dedupeKey) {
-  const snap = await getDb().collection(PLACES).where('dedupeKey', '==', dedupeKey).limit(1).get();
+export async function findByDedupeKey(dedupeKey, tripSlug = LEGACY_TRIP) {
+  const snap = await getDb()
+    .collection(PLACES)
+    .where('tripId', '==', tripSlug)
+    .where('dedupeKey', '==', dedupeKey)
+    .limit(1)
+    .get();
   return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
 // Upsert used by the xlsx importer. Spreadsheet-sourced fields are overwritten
 // with the latest sheet values; app-added state (visited, userNotes, photos)
 // is preserved across re-imports.
-export async function upsertFromImport({ dedupeKey, fields, coords, mapsUrlRaw, rowNumber }) {
+export async function upsertFromImport({ tripId = LEGACY_TRIP, dedupeKey, fields, coords, mapsUrlRaw, rowNumber }) {
   const admin = getAdmin();
-  const existing = await findByDedupeKey(dedupeKey);
+  const existing = await findByDedupeKey(dedupeKey, tripId);
   const now = admin.firestore.FieldValue.serverTimestamp();
 
   if (existing) {
@@ -286,6 +309,7 @@ export async function upsertFromImport({ dedupeKey, fields, coords, mapsUrlRaw, 
   const ref = await getDb()
     .collection(PLACES)
     .add({
+      tripId,
       fields,
       coords: coords || null,
       mapsUrlRaw: mapsUrlRaw || null,
@@ -300,10 +324,10 @@ export async function upsertFromImport({ dedupeKey, fields, coords, mapsUrlRaw, 
   return { id: ref.id, created: true };
 }
 
-export async function createPlace({ fields, coords, visited, userNotes }) {
+export async function createPlace({ tripId = LEGACY_TRIP, fields, coords, visited, userNotes }) {
   const admin = getAdmin();
   const now = admin.firestore.FieldValue.serverTimestamp();
-  const schema = await getSchema();
+  const schema = await getSchema(tripId);
   const nameField = fieldByRole(schema, 'name');
   const addressField = fieldByRole(schema, 'address');
   const dedupeKey = buildDedupeKey(
@@ -314,6 +338,7 @@ export async function createPlace({ fields, coords, visited, userNotes }) {
   const ref = await getDb()
     .collection(PLACES)
     .add({
+      tripId,
       fields,
       coords: coords || null,
       mapsUrlRaw: null,
@@ -371,6 +396,12 @@ export async function removePhoto(id, photoId) {
 export async function getGoogleLink(id) {
   const snap = await getDb().collection(PLACES).doc(id).get();
   return snap.exists ? snap.data().google || null : undefined;
+}
+
+// Which trip a place belongs to, or null if there is no such place.
+export async function placeTripId(id) {
+  const snap = await getDb().collection(PLACES).doc(id).get();
+  return snap.exists ? snap.data().tripId || LEGACY_TRIP : null;
 }
 
 // Overrides the automatic Google match: a placeId (or null to show no Google

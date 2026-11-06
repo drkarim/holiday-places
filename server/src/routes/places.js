@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { requireApiToken } from '../middleware/auth.js';
+import { requireTripEditor } from '../middleware/auth.js';
+import { photoLocation } from '../lib/trips.js';
 import {
-  getSchema,
   listPlaces,
   getPlace,
   createPlace,
@@ -9,7 +9,7 @@ import {
   deletePlace,
   getGoogleLink,
   setGoogleLink,
-  PHOTO_LOCATION,
+  placeTripId,
 } from '../lib/placesStore.js';
 import {
   googlePlacesEnabled,
@@ -21,11 +21,25 @@ import {
 import { mapRequestToFields, getRoleValue } from '../lib/requestMapping.js';
 import photosRouter from './photos.js';
 
+// Mounted under a trip (/api/trips/:trip/places, or /api/places for
+// Barbados); req.trip is set before these routes run.
 const router = Router();
+
+// A place id from another trip is treated as not found.
+async function inTrip(req, res, next) {
+  try {
+    if ((await placeTripId(req.params.id)) !== req.trip.slug) {
+      return res.status(404).json({ error: 'Place not found.' });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
 
 router.get('/', async (req, res, next) => {
   try {
-    res.json(await listPlaces());
+    res.json(await listPlaces(req.trip.slug));
   } catch (err) {
     next(err);
   }
@@ -33,7 +47,7 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const place = await getPlace(req.params.id);
+    const place = await getPlace(req.params.id, req.trip.slug);
     if (!place) return res.status(404).json({ error: 'Place not found.' });
     res.json(place);
   } catch (err) {
@@ -41,9 +55,9 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', requireApiToken, async (req, res, next) => {
+router.post('/', requireTripEditor, async (req, res, next) => {
   try {
-    const schema = await getSchema();
+    const schema = req.trip.schema;
     const body = req.body || {};
 
     const missing = ['name', 'type', 'area'].filter((role) => {
@@ -53,12 +67,13 @@ router.post('/', requireApiToken, async (req, res, next) => {
     if (missing.length) {
       return res.status(400).json({
         error: `Missing required field(s): ${missing.join(', ')}.`,
-        schemaHint: 'GET /api/schema to see the exact field keys and roles.',
+        schemaHint: `GET /api/trips/${req.trip.slug} to see the exact field keys and roles.`,
       });
     }
 
     const { fields, coords } = mapRequestToFields(body, schema);
     const place = await createPlace({
+      tripId: req.trip.slug,
       fields,
       coords,
       visited: body.visited,
@@ -70,9 +85,9 @@ router.post('/', requireApiToken, async (req, res, next) => {
   }
 });
 
-router.patch('/:id', requireApiToken, async (req, res, next) => {
+router.patch('/:id', requireTripEditor, inTrip, async (req, res, next) => {
   try {
-    const schema = await getSchema();
+    const schema = req.trip.schema;
     const body = req.body || {};
     const { fields, coords } = mapRequestToFields(body, schema);
 
@@ -90,10 +105,8 @@ router.patch('/:id', requireApiToken, async (req, res, next) => {
   }
 });
 
-router.delete('/:id', requireApiToken, async (req, res, next) => {
+router.delete('/:id', requireTripEditor, inTrip, async (req, res, next) => {
   try {
-    const existing = await getPlace(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Place not found.' });
     await deletePlace(req.params.id);
     res.status(204).end();
   } catch (err) {
@@ -104,7 +117,7 @@ router.delete('/:id', requireApiToken, async (req, res, next) => {
 // The place's Google Maps photo. Redirects to a short-lived Google image URL,
 // so the API key never reaches the browser; the app's service worker caches
 // the image under this URL for offline use.
-router.get('/:id/google-photo', async (req, res, next) => {
+router.get('/:id/google-photo', inTrip, async (req, res, next) => {
   try {
     if (!googlePlacesEnabled()) return res.status(404).end();
     const placeId = (await getGoogleLink(req.params.id))?.placeId;
@@ -134,7 +147,7 @@ router.get('/:id/google-photo', async (req, res, next) => {
 //   { "query": "Kira's Kuisine Bridgetown" }  search Google with this text
 //   { "placeId": "ChIJ..." }  use this exact Google place
 //   { "reset": true }         forget any override and match automatically
-router.put('/:id/google-match', requireApiToken, async (req, res, next) => {
+router.put('/:id/google-match', requireTripEditor, inTrip, async (req, res, next) => {
   try {
     const body = req.body || {};
     let google;
@@ -147,7 +160,11 @@ router.put('/:id/google-match', requireApiToken, async (req, res, next) => {
       let googleName = null;
       if (!placeId) {
         if (!googlePlacesEnabled()) return res.status(503).json({ error: 'GOOGLE_PLACES_API_KEY is not set.' });
-        const match = await findGooglePlace(String(body.query), PHOTO_LOCATION, { strict: false });
+        const match = await findGooglePlace(
+          String(body.query),
+          { near: photoLocation(req.trip), country: req.trip.country },
+          { strict: false }
+        );
         if (!match) return res.status(404).json({ error: `Google found nothing for "${body.query}".` });
         ({ placeId, googleName } = match);
       }
@@ -164,6 +181,6 @@ router.put('/:id/google-match', requireApiToken, async (req, res, next) => {
   }
 });
 
-router.use('/:id/photos', photosRouter);
+router.use('/:id/photos', inTrip, photosRouter);
 
 export default router;

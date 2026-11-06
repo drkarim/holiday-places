@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useData } from '../offline/DataContext.jsx';
+import { useData, useTripPath } from '../offline/DataContext.jsx';
 import { fieldByRole, valueByRole, shortLabel } from '../lib/fieldHelpers.js';
 import { PhotoCarousel } from '../components/PhotoCarousel.jsx';
 import { MapsButton } from '../components/MapsButton.jsx';
-import { api } from '../api.js';
 import './PlaceDetail.css';
 
 export function PlaceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { schema, places, updatePlace, deletePlace, addPhotoUrl, applyServerPlace } = useData();
+  const { api, canEdit, schema, places, updatePlace, deletePlace, addPhotoUrl, applyServerPlace } = useData();
+  const tripPath = useTripPath();
   const place = places.find((p) => p.id === id);
   const [notesDraft, setNotesDraft] = useState(place?.userNotes || '');
   const [photoUrl, setPhotoUrl] = useState('');
@@ -20,7 +20,7 @@ export function PlaceDetail() {
     return (
       <div className="app-shell">
         <div style={{ padding: 24 }}>
-          Place not found. <Link to="/">Back home</Link>
+          Place not found. <Link to={tripPath()}>Back to the trip</Link>
         </div>
       </div>
     );
@@ -97,7 +97,7 @@ export function PlaceDetail() {
   async function onDelete() {
     if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
     await deletePlace(place.id);
-    navigate('/');
+    navigate(tripPath());
   }
 
   return (
@@ -147,40 +147,43 @@ export function PlaceDetail() {
 
         <section className="detail-section">
           <h2>My notes</h2>
+          <p className="detail-hint">Saved on this phone only, like your visited ticks.</p>
           <textarea value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} placeholder="Add your own notes…" />
           <button className="btn btn-secondary" onClick={saveNotes} disabled={notesDraft === (place.userNotes || '')}>
             Save notes
           </button>
         </section>
 
-        <section className="detail-section">
-          <h2>Photos</h2>
-          <div className="photo-tools">
-            <form onSubmit={onAddPhotoUrl} className="photo-url-form">
-              <input
-                type="url"
-                placeholder="Paste an image URL"
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.target.value)}
-              />
-              <button className="btn btn-secondary" type="submit" disabled={busy}>
-                Add
+        {canEdit && (
+          <section className="detail-section">
+            <h2>Photos</h2>
+            <div className="photo-tools">
+              <form onSubmit={onAddPhotoUrl} className="photo-url-form">
+                <input
+                  type="url"
+                  placeholder="Paste an image URL"
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                />
+                <button className="btn btn-secondary" type="submit" disabled={busy}>
+                  Add
+                </button>
+              </form>
+              <label className="btn btn-secondary upload-btn">
+                📷 Upload photo
+                <input type="file" accept="image/*" hidden onChange={onUpload} disabled={busy} />
+              </label>
+              <button className="btn btn-secondary" onClick={onFetchWikimedia} disabled={busy}>
+                🔍 Find photos online
               </button>
-            </form>
-            <label className="btn btn-secondary upload-btn">
-              📷 Upload photo
-              <input type="file" accept="image/*" hidden onChange={onUpload} disabled={busy} />
-            </label>
-            <button className="btn btn-secondary" onClick={onFetchWikimedia} disabled={busy}>
-              🔍 Find photos online
-            </button>
-            {!place.photos.length && place.googlePhoto && (
-              <button className="btn btn-secondary" onClick={onHideGooglePhoto} disabled={busy}>
-                🚫 Wrong place? Hide Google photo
-              </button>
-            )}
-          </div>
-        </section>
+              {!place.photos.length && place.googlePhoto && (
+                <button className="btn btn-secondary" onClick={onHideGooglePhoto} disabled={busy}>
+                  🚫 Wrong place? Hide Google photo
+                </button>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="detail-section">
           <h2>Details</h2>
@@ -194,14 +197,16 @@ export function PlaceDetail() {
           </dl>
         </section>
 
-        <div className="detail-footer-actions">
-          <Link className="btn btn-secondary btn-block" to={`/places/${place.id}/edit`}>
-            Edit place
-          </Link>
-          <button className="btn btn-danger btn-block" onClick={onDelete}>
-            Delete place
-          </button>
-        </div>
+        {canEdit && (
+          <div className="detail-footer-actions">
+            <Link className="btn btn-secondary btn-block" to={tripPath(`/places/${place.id}/edit`)}>
+              Edit place
+            </Link>
+            <button className="btn btn-danger btn-block" onClick={onDelete}>
+              Delete place
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

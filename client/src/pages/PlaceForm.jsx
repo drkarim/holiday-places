@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useData } from '../offline/DataContext.jsx';
+import { useData, useTripPath } from '../offline/DataContext.jsx';
 import { buildFormSpec, initialFormState, buildPayload, validate } from '../lib/formSpec.js';
 import './PlaceForm.css';
 
 export function PlaceForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { schema, places, createPlace, updatePlace } = useData();
+  const { schema, places, createPlace, updatePlace, canEdit } = useData();
+  const tripPath = useTripPath();
   const isEdit = !!id;
   const place = isEdit ? places.find((p) => p.id === id) : null;
 
@@ -33,10 +34,10 @@ export function PlaceForm() {
       const payload = buildPayload(schema, formState);
       if (isEdit) {
         await updatePlace(place.id, payload);
-        navigate(`/places/${place.id}`);
+        navigate(tripPath(`/places/${place.id}`));
       } else {
         const created = await createPlace(payload);
-        navigate(`/places/${created.id}`);
+        navigate(tripPath(`/places/${created.id}`));
       }
     } catch (err) {
       setErrors([err.message]);
@@ -47,6 +48,10 @@ export function PlaceForm() {
 
   if (isEdit && !place) {
     return <div style={{ padding: 24 }}>Place not found.</div>;
+  }
+
+  if (!canEdit) {
+    return <div style={{ padding: 24 }}>Adding and editing places needs this trip's edit link.</div>;
   }
 
   return (

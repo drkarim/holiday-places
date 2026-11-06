@@ -10,6 +10,8 @@
   --text-dim: #c3cff0;
   --accent: var(--flag-gold);
   --accent-text: var(--flag-blue);
+  --secondary: var(--flag-gold); /* outlined buttons; set per trip theme */
+  --highlight: var(--flag-gold); /* accent-coloured text, e.g. place type */
   --border: #2b51ad;
   --danger: #f87171;
   --success: #4ade80;
@@ -78,8 +80,8 @@ button {
 
 .btn-secondary {
   background: var(--bg);
-  color: var(--accent);
-  border: 2px solid var(--accent);
+  color: var(--secondary);
+  border: 2px solid var(--secondary);
 }
 
 .btn-danger {

@@ -15,7 +15,8 @@
   gap: 10px;
 }
 
-.barbados-flag {
+.barbados-flag,
+.trip-flag {
   flex: none;
   border-radius: 3px;
   /* the flag's blue bands would vanish into the page background otherwise */
@@ -42,4 +43,107 @@
   text-align: center;
   color: var(--text-dim);
   padding: 40px 20px;
+}
+
+.home-subtitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.trip-switcher {
+  position: relative;
+}
+
+.trip-switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trip-switcher-caret {
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+.trip-switcher-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 200px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.trip-switcher-menu a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.trip-switcher-menu a:hover,
+.trip-switcher-menu a:focus-visible {
+  background: var(--chip-bg);
+}
+
+.organiser-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.organiser-tools-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.organiser-tools-row .btn {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.btn.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.notice {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.notice-error {
+  border-color: var(--danger);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--secondary);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
 }

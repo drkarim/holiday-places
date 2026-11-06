@@ -1,17 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useData } from '../offline/DataContext.jsx';
+import { useData, useTripPath } from '../offline/DataContext.jsx';
 import { useGeolocation } from '../hooks/useGeolocation.js';
 import { fieldByRole, valueByRole, haversineKm, formatKm, shortLabel } from '../lib/fieldHelpers.js';
 import { SearchBar } from '../components/SearchBar.jsx';
 import { Chips } from '../components/Chips.jsx';
 import { FilterBar } from '../components/FilterBar.jsx';
 import { PlaceCard } from '../components/PlaceCard.jsx';
-import { BarbadosFlag } from '../components/BarbadosFlag.jsx';
+import { TripFlag } from '../components/TripFlag.jsx';
+import { TripSwitcher } from '../components/TripSwitcher.jsx';
+import { OrganiserTools } from '../components/OrganiserTools.jsx';
 import './Home.css';
 
 export function Home() {
-  const { schema, places, loading } = useData();
+  const { trip, tripSlug, schema, places, loading, notFound, canEdit, badEditLink, dismissBadEditLink } = useData();
+  const tripPath = useTripPath();
   const { position } = useGeolocation();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState(null);
@@ -80,24 +83,44 @@ export function Home() {
   }, [withDistance, search, typeFilter, filters, schema, halalField, position]);
 
   if (loading) {
+    return <div style={{ padding: 24 }}>Loading your places…</div>;
+  }
+
+  if (notFound) {
     return (
-      <div className="app-shell">
-        <div style={{ padding: 24 }}>Loading your places…</div>
+      <div className="empty-state">
+        This trip link doesn't work. Check you have the whole link, or ask the trip organiser to send it again.
       </div>
     );
   }
 
   return (
     <div className="home-page">
+      {badEditLink && (
+        <div className="notice" role="alert">
+          That edit link isn't valid for this trip, so you can view it but not change it.{' '}
+          <button className="link-btn" onClick={dismissBadEditLink}>
+            OK
+          </button>
+        </div>
+      )}
       <div className="home-header">
         <div className="home-title">
-          <h1>Holiday Places</h1>
-          <BarbadosFlag height={24} />
+          <TripSwitcher current={tripSlug}>
+            <h1>
+              {trip?.name || 'Holiday Places'}
+              {trip?.city && trip.country && <small className="home-subtitle">{trip.country}</small>}
+            </h1>
+          </TripSwitcher>
+          <TripFlag countryCode={trip?.countryCode} country={trip?.country} height={24} />
         </div>
-        <Link to="/places/new" className="btn btn-primary add-btn" aria-label="Add a place">
-          + Add
-        </Link>
+        {canEdit && (
+          <Link to={tripPath('/new')} className="btn btn-primary add-btn" aria-label="Add a place">
+            + Add
+          </Link>
+        )}
       </div>
+      {canEdit && <OrganiserTools />}
       <SearchBar value={search} onChange={setSearch} />
       {types.length > 0 && <Chips options={types} active={typeFilter} onToggle={setTypeFilter} />}
       <FilterBar
@@ -113,8 +136,15 @@ export function Home() {
       {filtered.map(({ place, km }) => (
         <PlaceCard key={place.id} place={place} schema={schema} distanceLabel={km != null ? formatKm(km) : null} />
       ))}
-      {filtered.length === 0 && (
+      {filtered.length === 0 && places.length > 0 && (
         <div className="empty-state">No places match. Try clearing a filter or search.</div>
+      )}
+      {places.length === 0 && (
+        <div className="empty-state">
+          {canEdit
+            ? 'No places yet. Import a spreadsheet or add places one at a time.'
+            : 'No places yet. The trip organiser is still adding them.'}
+        </div>
       )}
     </div>
   );

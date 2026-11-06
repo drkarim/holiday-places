@@ -93,7 +93,7 @@
 }
 
 .place-card-type {
-  color: var(--accent);
+  color: var(--highlight);
   font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 1;

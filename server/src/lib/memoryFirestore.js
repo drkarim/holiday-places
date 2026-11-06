@@ -11,9 +11,10 @@ function getCollectionMap(name) {
   return collections.get(name);
 }
 
-function snapshotDoc(id, data) {
+function snapshotDoc(id, data, collectionName) {
   return {
     id,
+    ref: collectionName ? docRef(collectionName, id) : undefined,
     exists: data !== undefined,
     data: () => (data ? JSON.parse(JSON.stringify(data)) : undefined),
   };
@@ -24,18 +25,27 @@ function docRef(collectionName, id) {
     id,
     async get() {
       const map = getCollectionMap(collectionName);
-      return snapshotDoc(id, map.get(id));
+      return snapshotDoc(id, map.get(id), collectionName);
     },
     async set(data, opts = {}) {
       const map = getCollectionMap(collectionName);
       const existing = map.get(id) || {};
       const merged = opts.merge ? { ...existing, ...resolveFieldValues(data) } : resolveFieldValues(data);
-      map.set(id, merged);
+      map.set(id, dropDeleted(merged));
+    },
+    async update(data) {
+      const map = getCollectionMap(collectionName);
+      if (!map.has(id)) throw new Error(`memoryFirestore: no document ${collectionName}/${id} to update`);
+      map.set(id, dropDeleted({ ...map.get(id), ...resolveFieldValues(data) }));
     },
     async delete() {
       getCollectionMap(collectionName).delete(id);
     },
   };
+}
+
+function dropDeleted(data) {
+  return Object.fromEntries(Object.entries(data).filter(([, value]) => !(value && value.__delete)));
 }
 
 function resolveFieldValues(data) {
@@ -58,37 +68,58 @@ function collectionRef(name) {
       return { id };
     },
     async get() {
-      const map = getCollectionMap(name);
-      const docs = [...map.entries()].map(([id, data]) => snapshotDoc(id, data));
-      return { docs };
+      return query(name, [], Infinity).get();
     },
     where(field, op, value) {
-      const map = getCollectionMap(name);
-      let entries = [...map.entries()];
-      entries = entries.filter(([, data]) => {
-        if (op === '==') return data[field] === value;
-        throw new Error(`memoryFirestore: unsupported operator ${op}`);
-      });
-      return {
-        limit(n) {
-          return {
-            async get() {
-              const docs = entries.slice(0, n).map(([id, data]) => snapshotDoc(id, data));
-              return { empty: docs.length === 0, docs };
-            },
-          };
-        },
-      };
+      return query(name, [[field, op, value]], Infinity);
+    },
+  };
+}
+
+// Chainable equality filters plus limit, evaluated lazily at get().
+function query(name, filters, max) {
+  return {
+    where(field, op, value) {
+      return query(name, [...filters, [field, op, value]], max);
+    },
+    limit(n) {
+      return query(name, filters, n);
+    },
+    async get() {
+      const entries = [...getCollectionMap(name).entries()].filter(([, data]) =>
+        filters.every(([field, op, value]) => {
+          if (op === '==') return data[field] === value;
+          throw new Error(`memoryFirestore: unsupported operator ${op}`);
+        })
+      );
+      const docs = entries.slice(0, max).map(([id, data]) => snapshotDoc(id, data, name));
+      return { empty: docs.length === 0, docs };
+    },
+  };
+}
+
+function batch() {
+  const ops = [];
+  return {
+    update(ref, data) {
+      ops.push(() => ref.update(data));
+    },
+    set(ref, data, opts) {
+      ops.push(() => ref.set(data, opts));
+    },
+    async commit() {
+      for (const op of ops) await op();
     },
   };
 }
 
 export function createMemoryFirestore() {
-  return { collection: collectionRef };
+  return { collection: collectionRef, batch };
 }
 
 export const memoryFieldValue = {
   serverTimestamp: () => ({ __serverTimestamp: true }),
+  delete: () => ({ __delete: true }),
 };
 
 export function createMemoryBucket() {

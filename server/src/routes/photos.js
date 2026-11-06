@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
-import { requireApiToken } from '../middleware/auth.js';
-import { getPlace, addPhoto, removePhoto, getSchema } from '../lib/placesStore.js';
+import { requireTripEditor } from '../middleware/auth.js';
+import { getPlace, addPhoto, removePhoto } from '../lib/placesStore.js';
 import { fieldByRole } from '../lib/schema.js';
 import { searchCommonsPhotos } from '../lib/wikimedia.js';
 import { getBucket } from '../lib/firebase.js';
@@ -11,7 +11,7 @@ const router = Router({ mergeParams: true });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // Add a photo by pasting a URL.
-router.post('/', requireApiToken, async (req, res, next) => {
+router.post('/', requireTripEditor, async (req, res, next) => {
   try {
     const { url, caption } = req.body || {};
     if (!url || !/^https?:\/\//i.test(url)) {
@@ -27,7 +27,7 @@ router.post('/', requireApiToken, async (req, res, next) => {
 });
 
 // Upload a photo file, stored in Firebase Storage.
-router.post('/upload', requireApiToken, upload.single('photo'), async (req, res, next) => {
+router.post('/upload', requireTripEditor, upload.single('photo'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Attach a file in the "photo" field.' });
 
@@ -54,12 +54,12 @@ router.post('/upload', requireApiToken, upload.single('photo'), async (req, res,
 });
 
 // Search Wikimedia Commons for a few photos and attach them.
-router.post('/fetch', requireApiToken, async (req, res, next) => {
+router.post('/fetch', requireTripEditor, async (req, res, next) => {
   try {
     const place = await getPlace(req.params.id);
     if (!place) return res.status(404).json({ error: 'Place not found.' });
 
-    const schema = await getSchema();
+    const schema = req.trip.schema;
     const nameField = fieldByRole(schema, 'name');
     const areaField = fieldByRole(schema, 'area');
     const name = nameField ? place.fields[nameField.key] : '';
@@ -77,7 +77,7 @@ router.post('/fetch', requireApiToken, async (req, res, next) => {
   }
 });
 
-router.delete('/:photoId', requireApiToken, async (req, res, next) => {
+router.delete('/:photoId', requireTripEditor, async (req, res, next) => {
   try {
     const place = await removePhoto(req.params.id, req.params.photoId);
     if (!place) return res.status(404).json({ error: 'Place not found.' });

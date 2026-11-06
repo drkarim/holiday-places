@@ -11,7 +11,9 @@ import express from 'express';
 import cors from 'cors';
 import schemaRouter from './routes/schema.js';
 import placesRouter from './routes/places.js';
+import tripsRouter, { loadTrip } from './routes/trips.js';
 import { getImportStatus } from './lib/placesStore.js';
+import { ensureTrips, LEGACY_TRIP } from './lib/trips.js';
 import { importXlsx } from './importer/importXlsx.js';
 
 const clientDist = path.join(repoRoot, 'client', 'dist');
@@ -21,8 +23,11 @@ app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.use('/api/trips', tripsRouter);
+// Pre-trips addresses, kept so existing scripts and installed apps work:
+// they mean the Barbados trip.
 app.use('/api/schema', schemaRouter);
-app.use('/api/places', placesRouter);
+app.use('/api/places', loadTrip(LEGACY_TRIP), placesRouter);
 
 app.use((err, req, res, next) => {
   console.error(err);
@@ -52,6 +57,14 @@ async function maybeRunFirstImport() {
   } catch (err) {
     console.error('First-run import failed (server will still start):', err.message);
   }
+}
+
+// Trips are set up (and older places moved into Barbados) before serving,
+// so no request sees a half-migrated list.
+try {
+  await ensureTrips();
+} catch (err) {
+  console.error('Trip setup failed:', err.message);
 }
 
 app.listen(PORT, async () => {

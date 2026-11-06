@@ -77,6 +77,7 @@ status and your own notes/photos are preserved across re-imports.
 ```bash
 npm run import                      # imports data/places.xlsx
 npm run import -- path/to/other.xlsx  # or a specific file
+npm run import -- --trip tromso-zosy tromso.xlsx  # into another trip
 ```
 
 ## 2. Firebase setup (for real data, not the dev memory store)
@@ -123,18 +124,14 @@ run a single Node service.
    from GitHub repo** and pick it.
 2. Railway will detect `railway.json` and build with the Dockerfile. Set these
    variables on the service (Settings → Variables):
-   - `API_TOKEN` — a long random string (used to authorize writes, including
-     from your own assistant's API calls)
+   - `API_TOKEN` — a long random string: the admin key. It can change any
+     trip and create new trips; keep it to your own scripts.
    - `FIREBASE_PROJECT_ID`
    - `FIREBASE_CLIENT_EMAIL`
    - `FIREBASE_PRIVATE_KEY` — paste it with real newlines or `\n` escapes, Railway
      accepts either
    - `FIREBASE_STORAGE_BUCKET` (only if you've enabled Storage — see §2)
    - `PEXELS_API_KEY` (optional — category stock photos, see "Photos" below)
-   - `VITE_API_TOKEN` — **same value as `API_TOKEN`**. This one is baked into
-     the frontend at build time (Railway forwards service variables as Docker
-     build args automatically), so the app's own "Add place" / "Mark visited"
-     etc. can call the API.
 3. Deploy. Railway gives you a `*.up.railway.app` URL — open it on your phone
    and use "Add to Home Screen".
 4. Your Firestore data is independent of Railway — you seed it once locally
@@ -143,21 +140,55 @@ run a single Node service.
    file. To load a newer spreadsheet later, run `npm run import` again locally
    (pointed at production Firebase credentials in your local `.env`).
 
-### A note on the API token
+### Trips, view links and edit links
 
-This is a personal, single-user app with no login system (as scoped). The
-same `API_TOKEN` protects both the write API and the app's own UI actions,
-and it's visible in the browser's bundled JS to anyone who inspects it — fine
-for a private app only you use, but don't treat it as a strong secret. The
-read endpoints (`GET /api/places`, `GET /api/schema`) are open so the app can
-load without a login step; if you'd rather the whole site be private, put it
-behind Railway's access controls or ask for a login to be added.
+Each trip (Barbados; Tromsø, Norway; …) has its own places, spreadsheet
+columns, flag and colours, and lives at `/#/t/<trip>`. There are no accounts:
+
+- **View link** `https://<your-app>/#/t/<trip>`: anyone with it can browse
+  the trip offline, mark places visited and keep notes. Visited ticks and
+  notes are stored on that phone only and never sent to the server.
+- **Edit link** `https://<your-app>/#/t/<trip>/edit/<edit key>`: opening it
+  once saves the key on that phone and unlocks adding, editing, deleting,
+  photos and spreadsheet import for that trip only.
+- **Admin `API_TOKEN`**: works as the edit key for every trip, and is the
+  only key that can create trips. It never ships in the app.
+
+Trips are seeded from `TRIP_SEEDS` in `server/src/lib/trips.js` on startup,
+which stores only the SHA-256 of each edit key. To add one, either add a seed
+(generate a key, put its hash in the seed, deploy) or call the admin API:
+
+```bash
+curl -X POST https://<your-app>/api/trips \
+  -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"slug": "lisbon-k3x8", "name": "Lisbon", "city": "Lisbon", "country": "Portugal", "countryCode": "PT"}'
+# -> { "trip": {...}, "editKey": "..." }   the key is shown only once
+```
+
+Colour themes live in `client/src/lib/themes.js` (`barbados`, `norway`);
+a trip without a matching theme uses the Barbados colours.
+
+The organiser loads places by opening the edit link and using **Import
+spreadsheet** (.xlsx, .xls or .csv; the **Template** button downloads the
+expected headings). The first row needs at least Name, Type and Area
+columns. Re-importing updates places matched by name and address.
 
 ## 4. API reference (for your own scripts/assistant)
 
 Base URL: your Railway URL, or `http://localhost:3000` locally.
 
-All endpoints return JSON. Writes require `Authorization: Bearer <API_TOKEN>`.
+All endpoints return JSON. Every trip's API lives under
+`/api/trips/<trip>/places`; the examples below use the older `/api/places`
+address, which still means the Barbados trip. Writes require
+`Authorization: Bearer <key>` with that trip's edit key or the admin
+`API_TOKEN`. `GET /api/trips/<trip>` returns the trip's columns (`schema`).
+
+Import a spreadsheet into a trip:
+
+```bash
+curl -X POST https://<your-app>.up.railway.app/api/trips/<trip>/import \
+  -H "Authorization: Bearer $EDIT_KEY" -F "file=@places.xlsx"
+```
 
 ### List places
 

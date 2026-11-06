@@ -10,11 +10,14 @@ import { searchCommonsPhotos } from '../lib/wikimedia.js';
 
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 
+// node src/importer/fetchPhotos.js [--trip <slug>]   (default: barbados)
 async function main() {
-  const schema = await getSchema();
+  const tripFlag = process.argv.indexOf('--trip');
+  const tripSlug = tripFlag >= 0 ? process.argv[tripFlag + 1] : undefined;
+  const schema = await getSchema(tripSlug);
   const nameField = fieldByRole(schema, 'name');
   const areaField = fieldByRole(schema, 'area');
-  const places = await listPlaces();
+  const places = await listPlaces(tripSlug);
 
   let fetched = 0;
   for (const place of places) {

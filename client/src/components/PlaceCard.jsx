@@ -1,11 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTripPath } from '../offline/DataContext.jsx';
 import { valueByRole, shortLabel, cardName } from '../lib/fieldHelpers.js';
 import { MapsButton } from './MapsButton.jsx';
 import './PlaceCard.css';
 
 export function PlaceCard({ place, schema, distanceLabel }) {
   const navigate = useNavigate();
+  const tripPath = useTripPath();
   const name = valueByRole(schema, place, 'name') || 'Untitled place';
   const type = shortLabel(valueByRole(schema, place, 'type'));
   const area = valueByRole(schema, place, 'area');
@@ -15,7 +17,7 @@ export function PlaceCard({ place, schema, distanceLabel }) {
   const isGooglePhoto = photo === place.googlePhoto && !!photo;
 
   function goToDetail() {
-    navigate(`/places/${place.id}`);
+    navigate(tripPath(`/places/${place.id}`));
   }
 
   return (

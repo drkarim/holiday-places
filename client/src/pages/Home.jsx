@@ -8,12 +8,11 @@ import { Chips } from '../components/Chips.jsx';
 import { FilterBar } from '../components/FilterBar.jsx';
 import { PlaceCard } from '../components/PlaceCard.jsx';
 import { TripFlag } from '../components/TripFlag.jsx';
-import { TripSwitcher } from '../components/TripSwitcher.jsx';
 import { OrganiserTools } from '../components/OrganiserTools.jsx';
 import './Home.css';
 
 export function Home() {
-  const { trip, tripSlug, schema, places, loading, notFound, canEdit, badEditLink, dismissBadEditLink } = useData();
+  const { trip, schema, places, loading, notFound, canEdit, badEditLink, dismissBadEditLink } = useData();
   const tripPath = useTripPath();
   const { position } = useGeolocation();
   const [search, setSearch] = useState('');
@@ -104,14 +103,15 @@ export function Home() {
           </button>
         </div>
       )}
+      <Link to="/" className="all-trips-link">
+        ‹ All trips
+      </Link>
       <div className="home-header">
         <div className="home-title">
-          <TripSwitcher current={tripSlug}>
-            <h1>
-              {trip?.name || 'Holiday Places'}
-              {trip?.city && trip.country && <small className="home-subtitle">{trip.country}</small>}
-            </h1>
-          </TripSwitcher>
+          <h1>
+            {trip?.name || 'Holiday Places'}
+            {trip?.city && trip.country && <small className="home-subtitle">{trip.country}</small>}
+          </h1>
           <TripFlag countryCode={trip?.countryCode} country={trip?.country} height={24} />
         </div>
         {canEdit && (

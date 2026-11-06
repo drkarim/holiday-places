@@ -31,6 +31,8 @@ async function request(path, { method = 'GET', body, isForm, key } = {}) {
   return res.json();
 }
 
+export const listTrips = () => request('/api/trips');
+
 // API calls for one trip. Changes send the trip's edit key, read from this
 // phone at call time, so a key saved from an edit link applies immediately.
 export function tripApi(slug) {

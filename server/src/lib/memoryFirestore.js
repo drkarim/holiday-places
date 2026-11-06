@@ -85,6 +85,15 @@ function query(name, filters, max) {
     limit(n) {
       return query(name, filters, n);
     },
+    count() {
+      const self = this;
+      return {
+        async get() {
+          const { docs } = await self.get();
+          return { data: () => ({ count: docs.length }) };
+        },
+      };
+    },
     async get() {
       const entries = [...getCollectionMap(name).entries()].filter(([, data]) =>
         filters.every(([field, op, value]) => {

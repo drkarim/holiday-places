@@ -90,16 +90,6 @@ Examples: Sweden `{"background": "#00385c", "button": "#fecc02"}`; Ireland
 The app adjusts anything too light or too faint to stay readable, so you
 can't break the page, but dark backgrounds look best.
 
-To change colours later, send the trip's edit key:
-
-```
-PATCH {BASE_URL}/api/trips/{slug}
-Authorization: Bearer {editKey}
-Content-Type: application/json
-
-{ "colors": { "background": "#00385c", "button": "#fecc02" } }
-```
-
 Success is `201 Created` with:
 
 ```json
@@ -113,6 +103,16 @@ Errors: `409` means the slug is taken, so pick new random characters and
 retry; `401` means the admin key is wrong, so stop and tell me; `400` means a
 field is missing, the slug has invalid characters, or a colour isn't
 `#rrggbb` (the message says which).
+
+To change the colours afterwards (only if I ask), send the trip's edit key:
+
+```
+PATCH {BASE_URL}/api/trips/{slug}
+Authorization: Bearer {editKey}
+Content-Type: application/json
+
+{ "colors": { "background": "#00385c", "button": "#fecc02" } }
+```
 
 ## Step 3: upload the CSV
 
@@ -191,8 +191,9 @@ Reply with:
 ## Rules
 
 - Only create new trips and add places to the trip you just created. Never
-  change, re-import into, or delete any other trip, and never use `DELETE`
-  or `PATCH` requests.
+  change, re-import into, or delete any other trip. Never send `DELETE`
+  requests, and send `PATCH` only to change the colours of a trip you
+  created.
 - Never show the admin key. Show the edit key only in your report to me.
 - If anything fails twice, stop and tell me what the response said instead
   of guessing.

@@ -6,6 +6,7 @@ dist/
 client/dist/
 data/*.xlsx
 data/*.xls
+data/*.csv
 !data/.gitkeep
 firebase-debug.log
 firestore-debug.log

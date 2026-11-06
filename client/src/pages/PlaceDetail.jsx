@@ -118,6 +118,7 @@ export function PlaceDetail() {
             ? [{ ...place.categoryPhoto, isStock: true }]
             : []
         }
+        fallback={place.categoryPhoto ? { ...place.categoryPhoto, isStock: true } : null}
       />
 
       <div className="detail-content">

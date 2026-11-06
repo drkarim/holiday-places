@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTripPath } from '../offline/DataContext.jsx';
 import { valueByRole, shortLabel, cardName } from '../lib/fieldHelpers.js';
@@ -12,9 +12,13 @@ export function PlaceCard({ place, schema, distanceLabel }) {
   const type = shortLabel(valueByRole(schema, place, 'type'));
   const area = valueByRole(schema, place, 'area');
   const sheetDistance = valueByRole(schema, place, 'distance');
-  const photo = place.photos?.[0] || place.googlePhoto || place.categoryPhoto;
+  // A Google photo that fails to load (not saved on this phone, and Google
+  // unavailable) falls back to the stock photo.
+  const [googleFailed, setGoogleFailed] = useState(false);
+  const googlePhoto = googleFailed ? null : place.googlePhoto;
+  const photo = place.photos?.[0] || googlePhoto || place.categoryPhoto;
   const isStockPhoto = photo === place.categoryPhoto && !!photo;
-  const isGooglePhoto = photo === place.googlePhoto && !!photo;
+  const isGooglePhoto = photo === googlePhoto && !!photo;
 
   function goToDetail() {
     navigate(tripPath(`/places/${place.id}`));
@@ -30,7 +34,12 @@ export function PlaceCard({ place, schema, distanceLabel }) {
     >
       <div className="place-card-photo">
         {photo ? (
-          <img src={photo.url} alt={name} loading="lazy" />
+          <img
+            src={photo.url}
+            alt={name}
+            loading="lazy"
+            onError={isGooglePhoto ? () => setGoogleFailed(true) : undefined}
+          />
         ) : (
           <div className="place-card-placeholder">🏝️</div>
         )}

@@ -42,6 +42,15 @@ export async function setMeta(key, value) {
   await db.put('meta', value, key);
 }
 
+// The all-trips list, as last fetched, for the home page offline.
+export async function saveTripsList(trips) {
+  await setMeta('tripsList', trips);
+}
+
+export async function loadTripsList() {
+  return (await getMeta('tripsList')) || null;
+}
+
 // The trip's name, country, theme and columns, as last fetched.
 export async function saveTrip(slug, trip) {
   await setMeta(`trip:${slug}`, trip);

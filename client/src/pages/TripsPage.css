@@ -1,0 +1,68 @@
+.trips-page {
+  padding: 28px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.trips-header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.trips-header p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.trip-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trip-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  background: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  text-decoration: none;
+  color: #fff;
+}
+
+.trip-card:focus-visible {
+  outline: 3px solid var(--card-accent);
+  outline-offset: 2px;
+}
+
+.trip-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trip-card-name {
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.trip-card-meta {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.trip-card-go {
+  flex: none;
+  background: var(--card-accent);
+  color: var(--card-accent-text);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 10px;
+}

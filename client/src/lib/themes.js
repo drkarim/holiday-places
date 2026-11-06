@@ -2,6 +2,21 @@
 // Each maps onto the CSS variables in styles.css; Barbados is also the
 // stylesheet default, so the first paint before a trip loads matches it.
 export const THEMES = {
+  // The all-trips page: neutral night blue, so each trip card's own colours
+  // stand out.
+  home: {
+    bg: '#121a29',
+    bgElevated: '#1d2738',
+    bgCard: '#1a2333',
+    textDim: '#a9b4c8',
+    accent: '#ffffff',
+    accentText: '#121a29',
+    secondary: '#ffffff',
+    highlight: '#a9c8ff',
+    border: '#2c3850',
+    chipBg: '#243049',
+    overlay: '18, 26, 41',
+  },
   // Barbados flag: ultramarine background, gold buttons.
   barbados: {
     bg: '#00267f',

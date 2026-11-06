@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireApiToken, requireTripEditor, bearerToken } from '../middleware/auth.js';
-import { getTrip, createTrip, publicTrip, canEditTrip } from '../lib/trips.js';
+import { getTrip, createTrip, publicTrip, canEditTrip, listTrips } from '../lib/trips.js';
 import { importWorkbook } from '../importer/importXlsx.js';
 import placesRouter from './places.js';
 
@@ -21,6 +21,16 @@ export function loadTrip(slugFrom) {
     }
   };
 }
+
+// All trips, for the app's home page.
+router.get('/', async (req, res, next) => {
+  try {
+    const trips = await listTrips();
+    res.json(trips.sort((a, b) => a.name.localeCompare(b.name)));
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Create a trip (admin only). Responds with the edit key once; only its
 // hash is stored, so keep it.

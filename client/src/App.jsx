@@ -5,8 +5,9 @@ import { StatusBanner } from './components/StatusBanner.jsx';
 import { Home } from './pages/Home.jsx';
 import { PlaceDetail } from './pages/PlaceDetail.jsx';
 import { PlaceForm } from './pages/PlaceForm.jsx';
+import { TripsPage } from './pages/TripsPage.jsx';
 import { applyTheme } from './lib/themes.js';
-import { DEFAULT_TRIP, knownTrip, lastTrip, setEditKey } from './lib/tripAccess.js';
+import { DEFAULT_TRIP, knownTrip, setEditKey } from './lib/tripAccess.js';
 
 // Everything under /t/:trip shares one trip's data and colours. Keyed by
 // trip so switching trips starts from a clean state.
@@ -44,7 +45,7 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<Navigate to={`/t/${lastTrip()}`} replace />} />
+        <Route path="/" element={<TripsPage />} />
         <Route path="/t/:trip/edit/:key" element={<EditLink />} />
         <Route path="/t/:trip" element={<TripShell />}>
           <Route index element={<Home />} />

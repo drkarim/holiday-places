@@ -1,6 +1,6 @@
 // What this phone remembers about trips, in localStorage: the edit key from
-// an organiser's edit link, and the trips opened here (for the switcher and
-// for opening the last trip at "/"). Storage can be unavailable (private
+// an organiser's edit link, and the trips opened here (so the trips page can
+// list them offline before it has ever loaded the full list). Storage can be unavailable (private
 // mode), so every access is guarded and the app works without it.
 const KEY_PREFIX = 'editKey:';
 const KNOWN = 'knownTrips';
@@ -51,8 +51,4 @@ export function knownTrip(slug) {
 export function rememberTrip({ slug, name, countryCode, theme }) {
   const others = knownTrips().filter((t) => t.slug !== slug);
   write(KNOWN, JSON.stringify([{ slug, name, countryCode, theme, openedAt: Date.now() }, ...others]));
-}
-
-export function lastTrip() {
-  return knownTrips()[0]?.slug || DEFAULT_TRIP;
 }

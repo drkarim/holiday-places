@@ -52,53 +52,18 @@
   color: var(--text-dim);
 }
 
-.trip-switcher {
-  position: relative;
-}
-
-.trip-switcher-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  padding: 0;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.trip-switcher-caret {
-  font-size: 16px;
-  color: var(--text-dim);
-}
-
-.trip-switcher-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 30;
-  min-width: 200px;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-}
-
-.trip-switcher-menu a {
-  display: block;
-  padding: 10px 12px;
-  border-radius: 8px;
-  text-decoration: none;
+.all-trips-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: none;
 }
 
-.trip-switcher-menu a:hover,
-.trip-switcher-menu a:focus-visible {
-  background: var(--chip-bg);
+.all-trips-link:hover,
+.all-trips-link:focus-visible {
+  color: var(--text);
 }
 
 .organiser-tools {

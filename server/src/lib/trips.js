@@ -82,6 +82,22 @@ export function publicTrip(trip) {
   return rest;
 }
 
+// Every trip for the app's home page, without columns or key hashes, with
+// its number of places. A trip with `listed: false` is left out (reachable
+// only by its link).
+export async function listTrips() {
+  const snap = await getDb().collection(TRIPS).get();
+  const trips = snap.docs
+    .map((d) => ({ slug: d.id, ...d.data() }))
+    .filter((t) => t.listed !== false);
+  return Promise.all(
+    trips.map(async ({ slug, name, city, country, countryCode, theme }) => {
+      const count = await getDb().collection(PLACES).where('tripId', '==', slug).count().get();
+      return { slug, name, city, country, countryCode, theme, placeCount: count.data().count };
+    })
+  );
+}
+
 const cache = new Map(); // slug -> { trip, at }
 const CACHE_MS = 60 * 1000;
 

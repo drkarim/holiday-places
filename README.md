@@ -143,7 +143,9 @@ run a single Node service.
 ### Trips, view links and edit links
 
 Each trip (Barbados; Tromsø, Norway; …) has its own places, spreadsheet
-columns, flag and colours, and lives at `/#/t/<trip>`. There are no accounts:
+columns, flag and colours, and lives at `/#/t/<trip>`. The app's front page
+(`/`) lists every trip (`GET /api/trips`); set `listed: false` on a trip in
+Firestore to leave it off that page. There are no accounts:
 
 - **View link** `https://<your-app>/#/t/<trip>`: anyone with it can browse
   the trip offline, mark places visited and keep notes. Visited ticks and

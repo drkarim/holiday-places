@@ -22,6 +22,19 @@ function splitPayload(payload) {
   return { personal, shared };
 }
 
+// When the server couldn't check a place's Google photo just now (Google
+// quota or a restart), keep the one this phone already has, as long as it
+// is for the same Google place. It's normally saved on the phone already.
+function keepUnconfirmedPhotos(fresh, previous) {
+  const before = new Map(previous.map((p) => [p.id, p]));
+  return fresh.map((place) => {
+    if (place.googlePhoto || !place.googlePhotoUnconfirmed) return place;
+    const old = before.get(place.id)?.googlePhoto;
+    const sameMatch = old?.url?.includes(`ref=${encodeURIComponent(place.googleRef)}`);
+    return sameMatch ? { ...place, googlePhoto: old } : place;
+  });
+}
+
 function isQueuedForTrip(item, slug) {
   return (item.trip || LEGACY_TRIP) === slug;
 }
@@ -120,7 +133,8 @@ export function DataProvider({ tripSlug, children }) {
   );
 
   const refreshFromNetwork = useCallback(async () => {
-    const [info, fresh] = await Promise.all([api.getTrip(), api.getPlaces()]);
+    const [info, latest] = await Promise.all([api.getTrip(), api.getPlaces()]);
+    const fresh = keepUnconfirmedPhotos(latest, await db.loadTripPlaces(tripSlug));
     if (getEditKey(tripSlug) && !info.canEdit) {
       removeEditKey(tripSlug);
       setBadEditLink(true);

@@ -111,8 +111,10 @@ async function fetchFirstPhoto(placeId) {
   return { name: photo.name, author: author?.displayName || null, authorUri: author?.uri || null };
 }
 
-// First photo of a Google place, or null. Cached in memory and refreshed in
-// the background once stale, so lists stay fast after the first call.
+// First photo of a Google place: the photo, null when Google has none, or
+// undefined when Google couldn't be asked (quota, outage) and nothing is
+// cached, so callers can tell "no photo" from "don't know yet". Cached in
+// memory and refreshed in the background once stale, so lists stay fast.
 export async function getGooglePhoto(placeId) {
   const entry = photoCache.get(placeId);
   // Already fetching: wait for it on a cold cache, else serve the old photo.
@@ -126,9 +128,9 @@ export async function getGooglePhoto(placeId) {
     })
     .catch((err) => {
       if (!(err instanceof QuotaPausedError)) console.warn(`Google photo lookup failed for ${placeId}:`, err.message);
-      if (entry) photoCache.set(placeId, { ...entry, pending: null });
+      if (entry?.fetchedAt) photoCache.set(placeId, { ...entry, pending: null });
       else photoCache.delete(placeId);
-      return entry?.photo ?? null;
+      return entry?.fetchedAt ? entry.photo : undefined;
     });
   photoCache.set(placeId, { photo: entry?.photo ?? null, fetchedAt: entry?.fetchedAt ?? 0, pending });
   return entry ? entry.photo : pending;

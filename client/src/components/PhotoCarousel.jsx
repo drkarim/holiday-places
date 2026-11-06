@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import './PhotoCarousel.css';
 
-export function PhotoCarousel({ photos = [] }) {
+// `fallback` replaces the photos if the first one fails to load (a Google
+// photo that isn't saved on this phone while Google is unavailable).
+export function PhotoCarousel({ photos: given = [], fallback = null }) {
   const [index, setIndex] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const photos = failed && fallback ? [fallback] : given;
 
   if (!photos.length) {
     return (
@@ -16,7 +20,11 @@ export function PhotoCarousel({ photos = [] }) {
 
   return (
     <div className="carousel">
-      <img src={photo.url} alt={photo.caption || ''} />
+      <img
+        src={photo.url}
+        alt={photo.caption || ''}
+        onError={fallback && !failed && photo.source === 'google' ? () => setFailed(true) : undefined}
+      />
       {photo.isStock && <div className="carousel-stock-badge">Stock photo — not this specific place</div>}
       {photos.length > 1 && (
         <>

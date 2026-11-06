@@ -137,11 +137,16 @@ async function ensureGoogleMatch(doc, trip) {
   }
 }
 
+// Short tag of the Google place a photo belongs to, put in the photo URL so
+// a re-matched place doesn't hit the old cached image.
+function googleRef(placeId) {
+  return placeId.slice(-12);
+}
+
 export function googlePhotoFor(placeId, photo, id, tripSlug) {
   return {
     id: 'google',
-    // placeId in the URL so a re-matched place doesn't hit the old cached image
-    url: `/api/trips/${tripSlug}/places/${id}/google-photo?ref=${encodeURIComponent(placeId.slice(-12))}`,
+    url: `/api/trips/${tripSlug}/places/${id}/google-photo?ref=${encodeURIComponent(googleRef(placeId))}`,
     source: 'google',
     caption: null,
     attribution: photo.author ? `Photo: ${photo.author} · Google Maps` : 'Photo: Google Maps',
@@ -156,6 +161,9 @@ async function inBatches(items, size, fn) {
 
 // Adds a Google Maps photo to places that have none of their own. Matching
 // runs once per place (stored); photo details come from an in-memory cache.
+// When the place is matched but its photo couldn't be checked just now, it
+// is flagged `googlePhotoUnconfirmed` with its `googleRef`, so a phone that
+// already has that place's Google photo keeps showing it.
 async function attachGooglePhotos(entries, trip) {
   if (!googlePlacesEnabled()) return;
   await inBatches(
@@ -166,6 +174,10 @@ async function attachGooglePhotos(entries, trip) {
       if (!placeId) return;
       const photo = await getGooglePhoto(placeId);
       if (photo) place.googlePhoto = googlePhotoFor(placeId, photo, place.id, trip.slug);
+      else if (photo === undefined) {
+        place.googlePhotoUnconfirmed = true;
+        place.googleRef = googleRef(placeId);
+      }
     }
   );
 }

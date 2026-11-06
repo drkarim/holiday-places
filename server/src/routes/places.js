@@ -127,6 +127,8 @@ router.get('/:id/google-photo', inTrip, async (req, res, next) => {
     let url = null;
     for (let attempt = 0; attempt < 2 && !url; attempt++) {
       const photo = await getGooglePhoto(placeId);
+      // undefined: Google couldn't be asked just now, so try again later.
+      if (photo === undefined) return res.status(503).set('Retry-After', '1800').end();
       if (!photo) return res.status(404).end();
       try {
         url = await googlePhotoUrl(photo.name);

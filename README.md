@@ -175,6 +175,58 @@ spreadsheet** (.xlsx, .xls or .csv; the **Template** button downloads the
 expected headings). The first row needs at least Name, Type and Area
 columns. Re-importing updates places matched by name and address.
 
+### Adding a new country
+
+No code changes are needed: the flag comes from the country code, and
+Google photos, the front page and offline use work automatically.
+
+1. **Find your admin key.** It's the `API_TOKEN` value in Railway →
+   your service → Variables.
+2. **Create the trip** (on any computer with `curl`):
+
+   ```bash
+   curl -X POST https://holiday-places-production.up.railway.app/api/trips \
+     -H "Authorization: Bearer YOUR_API_TOKEN" -H "Content-Type: application/json" \
+     -d '{"slug": "lisbon-k3x8", "name": "Lisbon", "city": "Lisbon", "country": "Portugal", "countryCode": "PT"}'
+   ```
+
+   | Field | What to put |
+   |---|---|
+   | `slug` | The trip's address. Lowercase letters, numbers and `-`, with a few random characters at the end (`lisbon-k3x8`) so the link can't be guessed. |
+   | `name` | Shown as the trip's title, e.g. `Lisbon`. For a whole-country trip, the country name. |
+   | `city` | The city, or leave it out for a whole-country trip. Google and stock photo searches use "city, country". |
+   | `country` | The country in English, e.g. `Portugal`. Google photo matches must have an address in this country. |
+   | `countryCode` | The two-letter code (`PT`, `FR`, `JP`, `US`…). It picks the flag. |
+   | `theme` | Optional: an existing colour theme (`barbados` or `norway`). Without it the trip uses the Barbados colours. |
+
+3. **Save the edit key straight away.** The reply contains `"editKey": "…"`.
+   It is shown only this once (the server keeps only a scrambled copy), so
+   put it somewhere private, such as `trip-links.txt` (not committed to git).
+4. **Build the two links:**
+   - View link, for everyone: `https://holiday-places-production.up.railway.app/#/t/<slug>`
+   - Edit link, for the organiser only: `https://holiday-places-production.up.railway.app/#/t/<slug>/edit/<editKey>`
+5. **Load the places.** Open the edit link, tap **Template** for the column
+   headings, fill in the spreadsheet (at least Name, Type and Area; a notes
+   tab before the places tab is fine), then tap **Import spreadsheet**. You
+   can also add places one at a time with **+ Add**.
+6. **Share it.** Send friends the main app link (the trip is on the
+   "Choose a trip" page) or the view link. Send the edit link only to the
+   organiser.
+
+**Country colours:** a new country's own colour theme needs a small code
+change. Add an entry to `THEMES` in `client/src/lib/themes.js` (copy
+`norway` and change the colours), deploy, then set the trip's `theme` field
+to its name in Firestore (`trips/<slug>`).
+
+**Lost an edit key?** Keys can't be recovered. The admin `API_TOKEN` works
+as an edit link for any trip (`…/#/t/<slug>/edit/<API_TOKEN>`), but don't
+share that one. To issue a new key, generate one
+(`node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`)
+and store its SHA-256 as the trip's `editKeyHash`: in Firestore
+(`trips/<slug>`) for trips made with the API, or in `TRIP_SEEDS` in
+`server/src/lib/trips.js` for Barbados and Tromsø, which are re-applied from
+there on every start.
+
 ## 4. API reference (for your own scripts/assistant)
 
 Base URL: your Railway URL, or `http://localhost:3000` locally.

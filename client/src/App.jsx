@@ -6,7 +6,7 @@ import { Home } from './pages/Home.jsx';
 import { PlaceDetail } from './pages/PlaceDetail.jsx';
 import { PlaceForm } from './pages/PlaceForm.jsx';
 import { TripsPage } from './pages/TripsPage.jsx';
-import { applyTheme } from './lib/themes.js';
+import { applyTheme, themeFor } from './lib/themes.js';
 import { DEFAULT_TRIP, knownTrip, setEditKey } from './lib/tripAccess.js';
 
 // Everything under /t/:trip shares one trip's data and colours. Keyed by
@@ -17,7 +17,7 @@ function TripShell() {
     // Colours of a trip seen before apply at once; a new trip's apply when
     // its details arrive (DataProvider).
     const seen = knownTrip(trip);
-    if (seen || trip === DEFAULT_TRIP) applyTheme(seen?.theme || 'barbados');
+    if (seen || trip === DEFAULT_TRIP) applyTheme(themeFor(seen));
   }, [trip]);
   return (
     <DataProvider key={trip} tripSlug={trip}>

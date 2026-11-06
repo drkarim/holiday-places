@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireApiToken, requireTripEditor, bearerToken } from '../middleware/auth.js';
-import { getTrip, createTrip, publicTrip, canEditTrip, listTrips } from '../lib/trips.js';
+import { getTrip, createTrip, updateTrip, publicTrip, canEditTrip, listTrips, parseColors } from '../lib/trips.js';
 import { importWorkbook } from '../importer/importXlsx.js';
 import placesRouter from './places.js';
 
@@ -36,11 +36,11 @@ router.get('/', async (req, res, next) => {
 // hash is stored, so keep it.
 router.post('/', requireApiToken, async (req, res, next) => {
   try {
-    const { slug, name, city, country, countryCode, theme } = req.body || {};
+    const { slug, name, city, country, countryCode, theme, colors } = req.body || {};
     if (!/^[a-z0-9-]{3,40}$/.test(slug || '') || !name || !country) {
       return res.status(400).json({ error: 'Send slug (a-z, 0-9, -), name and country.' });
     }
-    const { trip, editKey } = await createTrip({ slug, name, city, country, countryCode, theme });
+    const { trip, editKey } = await createTrip({ slug, name, city, country, countryCode, theme, colors });
     res.status(201).json({ trip: publicTrip(trip), editKey });
   } catch (err) {
     next(err);
@@ -51,6 +51,18 @@ router.post('/', requireApiToken, async (req, res, next) => {
 // key sent (if any) unlocks editing, so the app can show or hide edit tools.
 router.get('/:trip', loadTrip(), (req, res) => {
   res.json({ ...publicTrip(req.trip), canEdit: canEditTrip(req.trip, bearerToken(req)) });
+});
+
+// Change a trip's colours (with its edit key): { "colors": {...} }, or
+// { "colors": null } to go back to the default.
+router.patch('/:trip', loadTrip(), requireTripEditor, async (req, res, next) => {
+  try {
+    if (!req.body || !('colors' in req.body)) return res.status(400).json({ error: 'Send { "colors": … }.' });
+    const trip = await updateTrip(req.trip.slug, { colors: parseColors(req.body.colors) });
+    res.json(publicTrip(trip));
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Upload a spreadsheet (.xlsx, .xls or .csv) into the trip.

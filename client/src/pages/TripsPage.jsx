@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listTrips } from '../api.js';
 import * as db from '../offline/db.js';
-import { applyTheme, THEMES } from '../lib/themes.js';
+import { applyTheme, themeFor } from '../lib/themes.js';
 import { knownTrips } from '../lib/tripAccess.js';
 import { TripFlag } from '../components/TripFlag.jsx';
 import './TripsPage.css';
@@ -49,7 +49,7 @@ export function TripsPage() {
 
       <div className="trip-cards">
         {trips?.map((trip) => {
-          const theme = THEMES[trip.theme] || THEMES.barbados;
+          const theme = themeFor(trip);
           return (
             <Link
               key={trip.slug}

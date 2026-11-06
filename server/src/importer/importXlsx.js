@@ -19,11 +19,22 @@ export async function importXlsx(filePath, tripSlug = LEGACY_TRIP) {
   return importWorkbook(readFileSync(filePath), { tripSlug, sourceName: path.basename(filePath) });
 }
 
+// Excel files are zip (.xlsx) or OLE (.xls) containers; anything else is
+// treated as CSV text. XLSX reads a raw CSV buffer as Latin-1, garbling
+// accents ("Québec" -> "QuÃ©bec"), so decode CSV as UTF-8 ourselves.
+function readWorkbook(buffer) {
+  const isZip = buffer[0] === 0x50 && buffer[1] === 0x4b;
+  const isOle = buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0;
+  if (isZip || isOle) return XLSX.read(buffer, { type: 'buffer' });
+  const text = buffer.toString('utf8').replace(/^﻿/, '');
+  return XLSX.read(text, { type: 'string', raw: true });
+}
+
 // Imports the first sheet of an .xlsx/.xls/.csv file (as a Buffer) into a
 // trip. Re-importing updates rows matched by name + address and keeps each
 // place's photos; the sheet's header row becomes the trip's columns.
 export async function importWorkbook(buffer, { tripSlug = LEGACY_TRIP, sourceName = null } = {}) {
-  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const wb = readWorkbook(buffer);
   const sheets = wb.SheetNames.map((name) => {
     const ws = wb.Sheets[name];
     const rows = ws?.['!ref'] ? XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) : [];

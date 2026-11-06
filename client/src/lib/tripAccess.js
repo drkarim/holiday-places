@@ -35,7 +35,7 @@ export function removeEditKey(slug) {
   write(KEY_PREFIX + slug, null);
 }
 
-// [{ slug, name, countryCode, theme, openedAt }], most recent first.
+// [{ slug, name, countryCode, theme, colors, openedAt }], most recent first.
 export function knownTrips() {
   try {
     return JSON.parse(read(KNOWN) || '[]');
@@ -48,7 +48,7 @@ export function knownTrip(slug) {
   return knownTrips().find((t) => t.slug === slug) || null;
 }
 
-export function rememberTrip({ slug, name, countryCode, theme }) {
+export function rememberTrip({ slug, name, countryCode, theme, colors }) {
   const others = knownTrips().filter((t) => t.slug !== slug);
-  write(KNOWN, JSON.stringify([{ slug, name, countryCode, theme, openedAt: Date.now() }, ...others]));
+  write(KNOWN, JSON.stringify([{ slug, name, countryCode, theme, colors, openedAt: Date.now() }, ...others]));
 }

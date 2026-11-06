@@ -167,8 +167,9 @@ curl -X POST https://<your-app>/api/trips \
 # -> { "trip": {...}, "editKey": "..." }   the key is shown only once
 ```
 
-Colour themes live in `client/src/lib/themes.js` (`barbados`, `norway`);
-a trip without a matching theme uses the Barbados colours.
+Colour themes live in `client/src/lib/themes.js`: built-in presets
+(`barbados`, `norway`), or one generated from a trip's own `colors`, kept
+readable automatically. A trip with neither uses the Barbados colours.
 
 The organiser loads places by opening the edit link and using **Import
 spreadsheet** (.xlsx, .xls or .csv; the **Template** button downloads the
@@ -197,7 +198,8 @@ Google photos, the front page and offline use work automatically.
    | `city` | The city, or leave it out for a whole-country trip. Google and stock photo searches use "city, country". |
    | `country` | The country in English, e.g. `Portugal`. Google photo matches must have an address in this country. |
    | `countryCode` | The two-letter code (`PT`, `FR`, `JP`, `US`…). It picks the flag. |
-   | `theme` | Optional: an existing colour theme (`barbados` or `norway`). Without it the trip uses the Barbados colours. |
+   | `colors` | Optional: the trip's colours from its flag, e.g. `{"background": "#8c0b18", "button": "#ffffff"}` (dark background, bright button; optional `buttonText`, `highlight`). Change later with `PATCH /api/trips/<slug>` and the edit key. |
+   | `theme` | Optional: a built-in theme instead (`barbados` or `norway`). With neither, the trip uses the Barbados colours. |
 
 3. **Save the edit key straight away.** The reply contains `"editKey": "…"`.
    It is shown only this once (the server keeps only a scrambled copy), so
@@ -213,10 +215,10 @@ Google photos, the front page and offline use work automatically.
    "Choose a trip" page) or the view link. Send the edit link only to the
    organiser.
 
-**Country colours:** a new country's own colour theme needs a small code
-change. Add an entry to `THEMES` in `client/src/lib/themes.js` (copy
-`norway` and change the colours), deploy, then set the trip's `theme` field
-to its name in Firestore (`trips/<slug>`).
+**Letting a bot do it:** [docs/bot-instructions.md](docs/bot-instructions.md)
+has the full steps written for an AI assistant: researching places, the CSV
+format, creating the trip with flag colours, uploading and reporting back.
+Give it the admin key separately.
 
 **Lost an edit key?** Keys can't be recovered. The admin `API_TOKEN` works
 as an edit link for any trip (`…/#/t/<slug>/edit/<API_TOKEN>`), but don't

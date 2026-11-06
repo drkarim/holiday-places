@@ -5,13 +5,35 @@
 // Google's terms let us store the place ID indefinitely, but not Places
 // content such as photo names, so photo details live only in memory below.
 const API = 'https://places.googleapis.com/v1';
-const PHOTO_TTL_MS = 12 * 60 * 60 * 1000;
+// Photo details are re-checked daily. Every restart starts from an empty
+// cache, so each place costs one lookup per day plus one per deploy.
+const PHOTO_TTL_MS = 24 * 60 * 60 * 1000;
+
+// When Google refuses a kind of request for being over a quota (HTTP 429,
+// e.g. "GetPlaceRequest per day"), stop sending that kind for a while
+// instead of retrying on every page load. Places keep their stock photo
+// meanwhile and pick up Google photos once lookups resume.
+const QUOTA_PAUSE_MS = 30 * 60 * 1000;
+const pausedUntil = new Map(); // request kind -> timestamp
+
+function requestKind(path) {
+  if (path.startsWith('places:searchText')) return 'search';
+  if (path.endsWith('/media') || path.includes('/media?')) return 'media';
+  return 'details';
+}
+
+export class QuotaPausedError extends Error {}
 
 export function googlePlacesEnabled() {
   return !!process.env.GOOGLE_PLACES_API_KEY;
 }
 
 async function call(path, { method = 'GET', fieldMask, body } = {}) {
+  const kind = requestKind(path);
+  const until = pausedUntil.get(kind) || 0;
+  if (Date.now() < until) {
+    throw new QuotaPausedError(`Google ${kind} lookups paused until ${new Date(until).toISOString()} (quota)`);
+  }
   const res = await fetch(`${API}/${path}`, {
     method,
     headers: {
@@ -22,6 +44,11 @@ async function call(path, { method = 'GET', fieldMask, body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 429) {
+    pausedUntil.set(kind, Date.now() + QUOTA_PAUSE_MS);
+    console.warn(`Google ${kind} quota reached; pausing those lookups for 30 minutes. ${data.error?.message || ''}`);
+    throw new QuotaPausedError(`Google Places 429: ${data.error?.message || 'quota exceeded'}`);
+  }
   if (!res.ok) throw new Error(`Google Places ${res.status}: ${data.error?.message || 'request failed'}`);
   return data;
 }
@@ -98,7 +125,7 @@ export async function getGooglePhoto(placeId) {
       return photo;
     })
     .catch((err) => {
-      console.warn(`Google photo lookup failed for ${placeId}:`, err.message);
+      if (!(err instanceof QuotaPausedError)) console.warn(`Google photo lookup failed for ${placeId}:`, err.message);
       if (entry) photoCache.set(placeId, { ...entry, pending: null });
       else photoCache.delete(placeId);
       return entry?.photo ?? null;

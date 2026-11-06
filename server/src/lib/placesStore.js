@@ -7,7 +7,7 @@ import { shortLabel } from './shortLabel.js';
 import { searchStockPhoto } from './pexels.js';
 import { searchCategoryPhoto } from './wikimedia.js';
 import { cardName } from './cardName.js';
-import { googlePlacesEnabled, findGooglePlace, getGooglePhoto } from './googlePlaces.js';
+import { googlePlacesEnabled, findGooglePlace, getGooglePhoto, QuotaPausedError } from './googlePlaces.js';
 import { getTrip, updateTrip, photoLocation, LEGACY_TRIP } from './trips.js';
 
 const PLACES = 'places';
@@ -130,7 +130,9 @@ async function ensureGoogleMatch(doc, trip) {
     doc.google = google;
     return google.placeId;
   } catch (err) {
-    console.warn(`Google match failed for "${name}", will retry later:`, err.message);
+    if (!(err instanceof QuotaPausedError)) {
+      console.warn(`Google match failed for "${name}", will retry later:`, err.message);
+    }
     return stored?.placeId || null;
   }
 }
